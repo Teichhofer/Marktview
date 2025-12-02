@@ -57,6 +57,8 @@ async def scrape_pages(
 
     all_listings: List[Listing] = []
     known_listing_ids = known_listing_ids or set()
+    processed_count = 0
+    added_count = 0
     current_page = 0
 
     while current_page < max_pages:
@@ -70,6 +72,7 @@ async def scrape_pages(
             print(f"[WARN] Keine Anzeigen gefunden – Dump gespeichert: {dump_path}")
             break
 
+        processed_count += len(listings)
         filtered_listings: List[Listing] = []
         for listing in listings:
             if any(
@@ -93,6 +96,7 @@ async def scrape_pages(
             )
 
             all_listings.extend(filtered_listings)
+            added_count += len(filtered_listings)
 
             if progress_path:
                 write_listings_to_excel(filtered_listings, progress_path)
@@ -109,6 +113,12 @@ async def scrape_pages(
 
         await next_button.click()
         current_page += 1
+
+    print(
+        "[INFO] Lauf abgeschlossen: "
+        f"{processed_count} Anzeigen verarbeitet, "
+        f"{added_count} zur Liste hinzugefügt."
+    )
 
     await page.close()
     return all_listings
