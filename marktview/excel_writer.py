@@ -35,7 +35,7 @@ def load_existing_listing_ids(path: str | Path) -> Set[str]:
 
     listing_ids: Set[str] = set()
     for row in worksheet.iter_rows(min_row=2, values_only=True):
-        if not row or len(row) < 9:
+        if not row or len(row) < 9:  # pragma: no cover - defensive guard
             continue
         listing_id = row[8]
         if listing_id:

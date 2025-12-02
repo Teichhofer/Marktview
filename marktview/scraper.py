@@ -22,7 +22,7 @@ async def _populate_listing(
     listing: Listing,
     concurrency: asyncio.Semaphore,
     known_listing_ids: Set[str],
-) -> None:
+) -> None:  # pragma: no cover - requires live browser
     async with concurrency:
         detail_page = await context.new_page()
         try:
@@ -76,7 +76,7 @@ async def scrape_pages(
     concurrency_limit: int,
     known_listing_ids: Set[str] | None = None,
     progress_path: str | Path | None = None,
-) -> List[Listing]:
+) -> List[Listing]:  # pragma: no cover - orchestrates browser automation
     """Scrape multiple listing pages starting from ``start_url``."""
 
     page = await context.new_page()
