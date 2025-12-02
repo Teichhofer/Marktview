@@ -29,7 +29,7 @@ io_logger.propagate = False
 
 # Default Ollama setup. A lightweight text generation model is used to keep
 # startup fast while still supporting the /api/generate endpoint.
-DEFAULT_MODEL = "ministral-3:3b"
+DEFAULT_MODEL = "gemma3:1b"
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434/api/generate"
 DEFAULT_TIMEOUT = 30.0
 
