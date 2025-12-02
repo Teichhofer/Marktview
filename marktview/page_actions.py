@@ -8,10 +8,13 @@ async def accept_cookies(page: Page) -> None:
     """Accept the cookie banner if it is visible."""
 
     try:
-        cookie_button = page.get_by_role("button", name="AKZEPTIEREN UND WEITER").first
-        if await cookie_button.is_visible(timeout=5000):
-            await cookie_button.click()
-            print("[INFO] Cookie-Banner akzeptiert.")
+        cookie_buttons = page.get_by_role("button", name="AKZEPTIEREN UND WEITER")
+        for index in range(await cookie_buttons.count()):
+            cookie_button = cookie_buttons.nth(index)
+            if await cookie_button.is_visible(timeout=5000):
+                await cookie_button.click()
+                print("[INFO] Cookie-Banner akzeptiert.")
+                break
     except Exception as exc:  # noqa: BLE001
         print(f"[WARN] Cookie-Banner Fehler: {exc}")
 
