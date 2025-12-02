@@ -1,6 +1,7 @@
 """High-level scraping orchestration."""
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import List, Set
 
@@ -13,6 +14,8 @@ from .models import Listing
 from .page_actions import accept_cookies, confirm_age, wait_for_page_ready
 from .parsers import parse_listing_details, parse_listings
 
+logger = logging.getLogger(__name__)
+
 
 async def _populate_listing(
     context: BrowserContext,
@@ -23,7 +26,7 @@ async def _populate_listing(
     async with concurrency:
         detail_page = await context.new_page()
         try:
-            print(f"[INFO] Lade Details für: {listing.title}")
+            logger.info("Lade Details für: %s", listing.title)
             await parse_listing_details(detail_page, listing)
             await asyncio.sleep(NETWORK_IDLE_DELAY)
 
@@ -36,15 +39,15 @@ async def _populate_listing(
                     if llm_gender:
                         listing.gender = llm_gender
                 except Exception as exc:  # noqa: BLE001
-                    print(
-                        "[WARN] Geschlecht konnte nicht per LLM ermittelt werden: "
-                        f"{exc}"
+                    logger.warning(
+                        "Geschlecht konnte nicht per LLM ermittelt werden: %s", exc,
+                        exc_info=True,
                     )
 
             if listing.listing_id:
                 known_listing_ids.add(listing.listing_id)
         except Exception as exc:  # noqa: BLE001
-            print(f"[WARN] Fehler bei {listing.url}: {exc}")
+            logger.warning("Fehler bei %s: %s", listing.url, exc, exc_info=True)
         finally:
             await detail_page.close()
 
@@ -78,14 +81,16 @@ async def scrape_pages(
     current_page = 0
 
     while current_page < max_pages:
-        print(f"[INFO] Verarbeite Seite {current_page + 1}")
+        logger.info("Verarbeite Seite %s", current_page + 1)
         await wait_for_page_ready(page, delay=NETWORK_IDLE_DELAY)
 
         listings = await parse_listings(page)
         if not listings:
             dump_path = Path(f"dump_page_{current_page + 1}.html")
             dump_path.write_text(await page.content(), encoding="utf-8")
-            print(f"[WARN] Keine Anzeigen gefunden – Dump gespeichert: {dump_path}")
+            logger.warning(
+                "Keine Anzeigen gefunden – Dump gespeichert: %s", dump_path
+            )
             break
 
         processed_count += len(listings)
@@ -94,14 +99,14 @@ async def scrape_pages(
             if any(
                 listing_id and listing_id in listing.url for listing_id in known_listing_ids
             ):
-                print(
-                    f"[INFO] Anzeige übersprungen (bereits vorhanden): {listing.url}"
+                logger.info(
+                    "Anzeige übersprungen (bereits vorhanden): %s", listing.url
                 )
                 continue
             filtered_listings.append(listing)
 
         if not filtered_listings:
-            print("[INFO] Alle Anzeigen auf dieser Seite sind bereits vorhanden.")
+            logger.info("Alle Anzeigen auf dieser Seite sind bereits vorhanden.")
         else:
             semaphore = asyncio.Semaphore(concurrency_limit)
             await asyncio.gather(
@@ -124,16 +129,16 @@ async def scrape_pages(
             is_visible = False
 
         if not is_visible:
-            print("[INFO] Keine weitere Seite gefunden.")
+            logger.info("Keine weitere Seite gefunden.")
             break
 
         await next_button.click()
         current_page += 1
 
-    print(
-        "[INFO] Lauf abgeschlossen: "
-        f"{processed_count} Anzeigen verarbeitet, "
-        f"{added_count} zur Liste hinzugefügt."
+    logger.info(
+        "Lauf abgeschlossen: %s Anzeigen verarbeitet, %s zur Liste hinzugefügt.",
+        processed_count,
+        added_count,
     )
 
     await page.close()

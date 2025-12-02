@@ -150,6 +150,13 @@ def query_llm(
     if endpoint == DEFAULT_ENDPOINT:
         _ollama_service.ensure_running(model=model, endpoint=endpoint)
 
+    logger.debug(
+        "Sende LLM-Anfrage: Modell='%s', Endpoint='%s', Timeout=%.1fs",
+        model,
+        endpoint,
+        timeout,
+    )
+
     def _send_request() -> requests.Response:
         response = requests.post(
             endpoint,
@@ -163,6 +170,14 @@ def query_llm(
         response = _send_request()
     except requests.exceptions.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else ""
+        body = exc.response.text if exc.response is not None else "<no response>"
+        logger.error(
+            "LLM-HTTP-Fehler (Status %s) bei Endpoint '%s' mit Modell '%s': %s",
+            status,
+            endpoint,
+            model,
+            body,
+        )
         if status == 404 and endpoint == DEFAULT_ENDPOINT:
             # If we get a 404 from the default endpoint, the local server might not
             # have been ready yet. Restart it once and retry the request so the
@@ -185,6 +200,11 @@ def query_llm(
                 hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
             raise LLMInferenceError(hint) from exc
     except requests.exceptions.RequestException as exc:  # noqa: PERF203
+        logger.exception(
+            "LLM-Endpunkt konnte nicht erreicht werden: Endpoint='%s', Modell='%s'",
+            endpoint,
+            model,
+        )
         hint = "LLM-Endpunkt konnte nicht erreicht werden."
         if endpoint == DEFAULT_ENDPOINT:
             hint += (
@@ -196,6 +216,12 @@ def query_llm(
     data = response.json()
     output = data.get("response") or data.get("output")
     if not output:
+        logger.error(
+            "LLM-Antwort ohne Text: Keys=%s, Endpoint='%s', Modell='%s'",
+            list(data.keys()),
+            endpoint,
+            model,
+        )
         raise LLMInferenceError("Antwort enthält keinen Text.")
     return str(output).strip()
 
@@ -214,4 +240,16 @@ def infer_gender_for_listing(
         return None
 
     logger.info("Leite Geschlechtsinferenz per LLM ein für Anzeige: %s", listing.url)
-    return query_llm(prompt, model=model, endpoint=endpoint, timeout=timeout)
+    logger.debug(
+        "Verwende Modell '%s' am Endpoint '%s' für Anzeige %s",
+        model,
+        endpoint,
+        listing.url,
+    )
+    try:
+        return query_llm(prompt, model=model, endpoint=endpoint, timeout=timeout)
+    except Exception:
+        logger.exception(
+            "Geschlechtsinferenz fehlgeschlagen für Anzeige: %s", listing.url
+        )
+        raise

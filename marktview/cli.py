@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import logging
 import time
 from pathlib import Path
 
@@ -78,6 +79,11 @@ async def run_once(args: argparse.Namespace) -> Path:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
     args = parse_args()
 
     try:
