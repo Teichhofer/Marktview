@@ -28,7 +28,7 @@ io_logger = logging.getLogger(f"{__name__}.io")
 io_logger.propagate = False
 
 # Default Ollama setup. A lightweight model is used to keep startup fast.
-DEFAULT_MODEL = "llama3.2:1b"
+DEFAULT_MODEL = "qwen3-embedding:0.6b"
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434/api/generate"
 DEFAULT_TIMEOUT = 30.0
 
