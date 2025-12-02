@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import sys
 import time
 from pathlib import Path
 
@@ -60,6 +61,21 @@ def parse_args() -> argparse.Namespace:
     return build_parser().parse_args()
 
 
+def configure_utf8_output() -> None:
+    """Ensure stdout/stderr use UTF-8 encoding.
+
+    This prevents ``UnicodeEncodeError`` when console code pages do not
+    support characters used in listing titles (e.g., emojis on Windows).
+    """
+
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+        except AttributeError:
+            # ``reconfigure`` not available (e.g., when stream is replaced).
+            pass
+
+
 async def run_once(args: argparse.Namespace) -> Path:
     output_path = Path(args.output)
 
@@ -104,6 +120,8 @@ def main() -> None:
 
     log_dir = Path("log")
 
+    configure_utf8_output()
+
     if args.clear:
         clear_artifacts(Path(args.output), log_dir)
         print("Logs und Ausgabedatei wurden gelöscht.")
@@ -115,8 +133,10 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=[
-            logging.FileHandler(log_dir / "marktview.log"),
+            logging.FileHandler(log_dir / "marktview.log", encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
         ],
+        force=True,
     )
 
     try:
