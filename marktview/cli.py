@@ -50,6 +50,7 @@ def parse_args() -> argparse.Namespace:
 
 async def run() -> Path:
     args = parse_args()
+    output_path = Path(args.output)
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=args.headless)
@@ -60,11 +61,12 @@ async def run() -> Path:
             args.start_url,
             max_pages=args.max_pages,
             concurrency_limit=args.concurrency,
+            progress_path=output_path,
         )
 
         await browser.close()
 
-    return write_listings_to_excel(listings, args.output)
+    return write_listings_to_excel(listings, output_path)
 
 
 def main() -> None:

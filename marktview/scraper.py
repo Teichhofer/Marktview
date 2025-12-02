@@ -7,6 +7,7 @@ from typing import List
 from playwright.async_api import BrowserContext
 
 from .config import NETWORK_IDLE_DELAY, PAGE_READY_DELAY
+from .excel_writer import write_listings_to_excel
 from .models import Listing
 from .page_actions import accept_cookies, confirm_age, wait_for_page_ready
 from .parsers import parse_listing_details, parse_listings
@@ -31,6 +32,7 @@ async def scrape_pages(
     *,
     max_pages: int,
     concurrency_limit: int,
+    progress_path: str | Path | None = None,
 ) -> List[Listing]:
     """Scrape multiple listing pages starting from ``start_url``."""
 
@@ -65,6 +67,9 @@ async def scrape_pages(
         )
 
         all_listings.extend(listings)
+
+        if progress_path:
+            write_listings_to_excel(all_listings, progress_path)
 
         next_button = page.locator("button.clsy-c-pagination__next")
         try:
