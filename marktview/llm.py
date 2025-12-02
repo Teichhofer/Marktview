@@ -239,7 +239,7 @@ class LLMClient:
             response.raise_for_status()
             return response
 
-        max_attempts = 2
+        max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
                 response = _send_request()
@@ -315,6 +315,17 @@ class LLMClient:
                     )
                     continue
                 raise
+
+            confidence_match = re.search(r"(\d{1,3})%", normalized_output)
+            confidence = int(confidence_match.group(1)) if confidence_match else 0
+            if confidence < 50 and attempt < max_attempts:
+                logger.info(
+                    "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – wiederhole Anfrage (%s/%s)",
+                    confidence,
+                    attempt + 1,
+                    max_attempts,
+                )
+                continue
 
             io_logger.info(
                 "← Antwort (Modell='%s', Endpoint='%s'): %s",
