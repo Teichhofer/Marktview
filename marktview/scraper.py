@@ -109,12 +109,10 @@ async def scrape_pages(
             logger.info("Alle Anzeigen auf dieser Seite sind bereits vorhanden.")
         else:
             semaphore = asyncio.Semaphore(concurrency_limit)
-            await asyncio.gather(
-                *(
-                    _populate_listing(context, listing, semaphore, known_listing_ids)
-                    for listing in filtered_listings
-                )
-            )
+            for listing in filtered_listings:
+                # Stelle sicher, dass die nächste Anzeige erst verarbeitet wird,
+                # wenn die optionale Geschlechtsbestimmung per LLM abgeschlossen ist.
+                await _populate_listing(context, listing, semaphore, known_listing_ids)
 
             all_listings.extend(filtered_listings)
             added_count += len(filtered_listings)
