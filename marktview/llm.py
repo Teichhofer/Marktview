@@ -188,10 +188,15 @@ def _normalize_gender_output(raw_output: str) -> str:
 
     percent_match = re.search(r"(\d{1,3})\s*%?", cleaned)
     if not percent_match:
-        raise LLMInferenceError("Antwort enthält keine Prozentangabe.")
+        # Einige Modelle ignorieren gelegentlich die Anweisung, eine Zahl
+        # zurückzugeben. In diesem Fall wird die Antwort nicht mehr hart
+        # abgelehnt, sondern mit einer konservativen Standardwahrscheinlichkeit
+        # versehen, damit die Verarbeitung der Anzeige nicht fehlschlägt.
+        percent = 50
+    else:
+        percent = min(max(int(percent_match.group(1)), 0), 100)
 
     gender = gender_match.group(1).lower()
-    percent = min(max(int(percent_match.group(1)), 0), 100)
     return f"{gender} {percent}%"
 
 
