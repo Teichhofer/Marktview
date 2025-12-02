@@ -202,7 +202,7 @@ def _build_target_audience_prompt(listing: Listing) -> str:
 
     question = (
         "Für welches Geschlecht richtet sich diese Anzeige? Antworte nur mit einem der Wörter "
-        "'männlich', 'weiblich', 'divers' oder 'unbekannt'. Keine weiteren Wörter, keine Begründung."
+        "'männlich', 'weiblich', 'divers', 'bi' oder 'unbekannt'. Keine weiteren Wörter, keine Begründung."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
@@ -239,7 +239,7 @@ def _normalize_target_audience_output(raw_output: str) -> str:
     cleaned = raw_output.replace("<", " ").replace(">", " ").strip()
     cleaned = " ".join(cleaned.split())
 
-    audience_pattern = re.compile(r"\b(weiblich|männlich|divers|unbekannt)\b", re.IGNORECASE)
+    audience_pattern = re.compile(r"\b(weiblich|männlich|divers|bi|unbekannt)\b", re.IGNORECASE)
     match = audience_pattern.search(cleaned)
     if not match:
         raise LLMInferenceError("Antwort enthält keine erkennbaren Zielgruppe.")
