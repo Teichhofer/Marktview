@@ -19,6 +19,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from typing import Optional
 
+import re
+
 import requests
 
 from .models import Listing
@@ -165,11 +167,31 @@ def _build_gender_prompt(listing: Listing) -> str:
         parts.append(f"Nutzername: {listing.username}")
     question = (
         "Antworte ausschließlich mit einer einzigen Zeile im Format "
-        "'<weiblich/männlich/divers/unbekannt> <0-100>%'. Keine weiteren Wörter, "
-        "keine Namen, keine Erklärungen oder Beispiele."
+        "'weiblich/männlich/divers/unbekannt <0-100>%'. Keine spitzen Klammern, "
+        "keine weiteren Wörter, keine Namen, keine Erklärungen oder Beispiele."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
+
+
+def _normalize_gender_output(raw_output: str) -> str:
+    """Normalize LLM output to the expected 'geschlecht <zahl>%'-format."""
+
+    cleaned = raw_output.replace("<", " ").replace(">", " ").strip()
+    cleaned = " ".join(cleaned.split())
+
+    gender_pattern = re.compile(r"\b(weiblich|männlich|divers|unbekannt)\b", re.IGNORECASE)
+    gender_match = gender_pattern.search(cleaned)
+    if not gender_match:
+        raise LLMInferenceError("Antwort enthält kein erkennbares Geschlecht.")
+
+    percent_match = re.search(r"(\d{1,3})\s*%?", cleaned)
+    if not percent_match:
+        raise LLMInferenceError("Antwort enthält keine Prozentangabe.")
+
+    gender = gender_match.group(1).lower()
+    percent = min(max(int(percent_match.group(1)), 0), 100)
+    return f"{gender} {percent}%"
 
 
 class LLMClient:
@@ -273,13 +295,15 @@ class LLMClient:
             raise LLMInferenceError("Antwort enthält keinen Text.")
 
         cleaned_output = str(output).strip()
+        normalized_output = _normalize_gender_output(cleaned_output)
+
         io_logger.info(
             "← Antwort (Modell='%s', Endpoint='%s'): %s",
             self.model,
             self.endpoint,
             cleaned_output,
         )
-        return cleaned_output
+        return normalized_output
 
     def infer_gender_for_listing(self, listing: Listing) -> Optional[str]:
         """Use an LLM to guess the gender when it is missing on the site."""
