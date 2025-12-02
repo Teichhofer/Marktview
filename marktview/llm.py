@@ -53,6 +53,18 @@ class _LocalOllamaService:
         except Exception:  # noqa: BLE001
             return False
 
+    def _model_exists(self, base_url: str, model: str) -> bool:
+        """Check whether the requested model is already available on the server."""
+
+        try:
+            response = requests.get(f"{base_url}/api/tags", timeout=3)
+            response.raise_for_status()
+            data = response.json()
+            models = data.get("models", [])
+            return any(item.get("name") == model for item in models)
+        except Exception:  # noqa: BLE001
+            return False
+
     def _wait_until_ready(self, base_url: str, timeout: float = 20.0) -> None:
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -81,8 +93,7 @@ class _LocalOllamaService:
         base_url = self._base_url(endpoint)
 
         with self._lock:
-            if self._is_reachable(base_url):
-                return
+            reachable = self._is_reachable(base_url)
 
             binary = shutil.which("ollama")
             if not binary:
@@ -91,14 +102,17 @@ class _LocalOllamaService:
                     "Ollama gemäß https://ollama.com/download."
                 )
 
-            logger.info("Starte lokalen Ollama-Server …")
-            self._process = subprocess.Popen(
-                [binary, "serve"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-                text=True,
-            )
-            self._started_by_app = True
+            if not reachable:
+                logger.info("Starte lokalen Ollama-Server …")
+                self._process = subprocess.Popen(
+                    [binary, "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                self._started_by_app = True
+            elif self._model_exists(base_url, model):
+                return
 
         self._wait_until_ready(base_url)
         self._pull_model(binary, model)
