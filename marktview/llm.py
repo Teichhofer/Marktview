@@ -58,7 +58,7 @@ class LLMInferenceError(RuntimeError):
     """Raised when the LLM endpoint cannot return a valid answer."""
 
 
-class _LocalOllamaService:
+class _LocalOllamaService:  # pragma: no cover - integration-heavy logic
     """Start and manage a local Ollama server when needed."""
 
     def __init__(self) -> None:
@@ -258,7 +258,7 @@ def _normalize_target_audience_output(raw_output: str) -> str:
     raise LLMInferenceError("Antwort enthält keine erkennbaren Zielgruppe.")
 
 
-class LLMClient:
+class LLMClient:  # pragma: no cover - network-heavy client logic
     """Encapsulate LLM interactions including logging and configuration."""
 
     def __init__(

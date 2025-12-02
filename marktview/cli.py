@@ -111,7 +111,7 @@ def clear_artifacts(output_path: Path, log_dir: Path) -> None:
         # Entferne leeres Verzeichnis, falls möglich
         try:
             log_dir.rmdir()
-        except OSError:
+        except OSError:  # pragma: no cover - non-empty directory
             # Verzeichnis ist nicht leer oder konnte nicht entfernt werden
             pass
 
@@ -142,16 +142,16 @@ def main() -> None:
     )
 
     try:
-        if args.loop:
+        if args.loop:  # pragma: no cover - manual loop mode
             while True:
                 asyncio.run(run_once(args))
                 print("Erneuter Durchlauf in 5 Minuten. Abbruch mit Strg+C.")
                 time.sleep(300)
         else:
             asyncio.run(run_once(args))
-    except KeyboardInterrupt:
+    except KeyboardInterrupt:  # pragma: no cover - user interruption path
         print("Loop beendet.")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover - entrypoint
     main()
