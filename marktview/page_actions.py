@@ -8,7 +8,7 @@ async def accept_cookies(page: Page) -> None:
     """Accept the cookie banner if it is visible."""
 
     try:
-        cookie_button = page.locator("text=AKZEPTIEREN UND WEITER")
+        cookie_button = page.get_by_role("button", name="AKZEPTIEREN UND WEITER").first
         if await cookie_button.is_visible(timeout=5000):
             await cookie_button.click()
             print("[INFO] Cookie-Banner akzeptiert.")

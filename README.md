@@ -34,6 +34,9 @@ python -m marktview `
   --headless  # oder --no-headless für sichtbaren Browser
 ```
 
+Hinweis: Die Zeile ```powershell` dient nur als Markierung im Markdown-Beispiel und darf nicht mitkopiert werden. Der eigentliche
+Aufruf beginnt mit `python -m marktview`.
+
 Parameter sind optional; ohne Flags werden Standardwerte aus `marktview/config.py` verwendet.
 
 ## Struktur
