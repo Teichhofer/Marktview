@@ -23,6 +23,17 @@ python -m marktview \
   --headless  # oder --no-headless für sichtbaren Browser
 ```
 
+Unter PowerShell bitte den Zeilenumbruch-Operator `` ` `` verwenden (Backslash verursacht dort den gezeigten Fehler):
+
+```powershell
+python -m marktview `
+  --start-url "https://erotik.markt.de/74670-forchtenberg/anzeigen/fetisch/?radius=100" `
+  --output anzeigen.xlsx `
+  --max-pages 50 `
+  --concurrency 2 `
+  --headless  # oder --no-headless für sichtbaren Browser
+```
+
 Parameter sind optional; ohne Flags werden Standardwerte aus `marktview/config.py` verwendet.
 
 ## Struktur
