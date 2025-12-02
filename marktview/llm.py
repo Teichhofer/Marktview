@@ -188,6 +188,25 @@ def _build_gender_prompt(listing: Listing) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
+def _build_target_audience_prompt(listing: Listing) -> str:
+    """Construct a prompt to infer the intended audience of the listing."""
+
+    parts = ["Anzeigetext:"]
+    if listing.title:
+        parts.append(f"Titel: {listing.title}")
+    if listing.body:
+        parts.append(listing.body)
+    if listing.username and listing.username != "nicht angegeben":
+        parts.append(f"Nutzername: {listing.username}")
+
+    question = (
+        "Für welches Geschlecht richtet sich diese Anzeige? Antworte nur mit einem der Wörter "
+        "'männlich', 'weiblich', 'divers' oder 'unbekannt'. Keine weiteren Wörter, keine Begründung."
+    )
+    parts.append(question)
+    return "\n\n".join(part for part in parts if part)
+
+
 def _normalize_gender_output(raw_output: str) -> str:
     """Normalize LLM output to the expected 'geschlecht <zahl>%'-format."""
 
@@ -213,6 +232,20 @@ def _normalize_gender_output(raw_output: str) -> str:
     return f"{gender} {percent}%"
 
 
+def _normalize_target_audience_output(raw_output: str) -> str:
+    """Normalize LLM output for the target audience question."""
+
+    cleaned = raw_output.replace("<", " ").replace(">", " ").strip()
+    cleaned = " ".join(cleaned.split())
+
+    audience_pattern = re.compile(r"\b(weiblich|männlich|divers|unbekannt)\b", re.IGNORECASE)
+    match = audience_pattern.search(cleaned)
+    if not match:
+        raise LLMInferenceError("Antwort enthält keine erkennbaren Zielgruppe.")
+
+    return match.group(1).lower()
+
+
 class LLMClient:
     """Encapsulate LLM interactions including logging and configuration."""
 
@@ -229,7 +262,14 @@ class LLMClient:
         self.timeout = timeout
         self._service = service or _ollama_service
 
-    def query(self, prompt: str) -> str:
+    def query(
+        self,
+        prompt: str,
+        *,
+        normalizer=_normalize_gender_output,
+        enforce_confidence: bool = True,
+        fallback: str = "unbekannt 0%",
+    ) -> str:
         """Send a prompt to the configured LLM endpoint and return its response."""
 
         if self.endpoint == DEFAULT_ENDPOINT:
@@ -273,29 +313,23 @@ class LLMClient:
                 )
                 if status == 404 and self.endpoint == DEFAULT_ENDPOINT:
                     logger.info(
-                        "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu "
-                        "und versuche es erneut …"
+                        "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu und versuche es erneut …"
                     )
                     self._service.stop()
-                    self._service.ensure_running(
-                        model=self.model, endpoint=self.endpoint
-                    )
+                    self._service.ensure_running(model=self.model, endpoint=self.endpoint)
                     response = _send_request()
                 else:
                     if status == 404:
                         hint = (
                             "Der LLM-Endpunkt antwortet mit 404 Not Found. Läuft Ollama "
-                            f"auf {self.endpoint}? Starte den Dienst mit 'ollama serve' "
-                            "oder passe den Endpunkt an."
+                            f"auf {self.endpoint}? Starte den Dienst mit 'ollama serve' oder passe den Endpunkt an."
                         )
                     else:
                         hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
                     if attempt == max_attempts:
                         raise LLMInferenceError(hint) from exc
                     logger.info(
-                        "HTTP-Fehler – wiederhole Anfrage (%s/%s)",
-                        attempt + 1,
-                        max_attempts,
+                        "HTTP-Fehler – wiederhole Anfrage (%s/%s)", attempt + 1, max_attempts
                     )
                     continue
             except requests.exceptions.RequestException as exc:  # noqa: PERF203
@@ -307,16 +341,13 @@ class LLMClient:
                 hint = "LLM-Endpunkt konnte nicht erreicht werden."
                 if self.endpoint == DEFAULT_ENDPOINT:
                     hint += (
-                        " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, "
-                        "installiere bzw. starte den Dienst oder konfiguriere einen "
-                        "eigenen Endpunkt."
+                        " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, installiere bzw. starte den Dienst "
+                        "oder konfiguriere einen eigenen Endpunkt."
                     )
                 if attempt == max_attempts:
                     raise LLMInferenceError(f"{hint} Details: {exc}") from exc
                 logger.info(
-                    "Netzwerkfehler – wiederhole Anfrage (%s/%s)",
-                    attempt + 1,
-                    max_attempts,
+                    "Netzwerkfehler – wiederhole Anfrage (%s/%s)", attempt + 1, max_attempts
                 )
                 continue
 
@@ -334,45 +365,37 @@ class LLMClient:
             cleaned_output = str(output).strip()
 
             try:
-                normalized_output = _normalize_gender_output(cleaned_output)
-            except LLMInferenceError as exc:
-                if (
-                    "Antwort enthält keine Prozentangabe." in str(exc)
-                    and attempt < max_attempts
-                ):
-                    logger.info(
-                        "LLM-Antwort ohne Prozentangabe – wiederhole Anfrage (%s/%s)",
-                        attempt + 1,
-                        max_attempts,
-                    )
-                    continue
+                normalized_output = normalizer(cleaned_output) if normalizer else cleaned_output
+            except LLMInferenceError:
                 if attempt < max_attempts:
                     logger.info(
-                        "LLM-Antwort ohne erkennbares Geschlecht – wiederhole Anfrage (%s/%s)",
+                        "LLM-Antwort erfüllt Qualitätsanforderungen nicht – wiederhole Anfrage (%s/%s)",
                         attempt + 1,
                         max_attempts,
                     )
                     continue
                 logger.warning(
-                    "LLM-Antwort erfüllt Qualitätsanforderungen nicht – nutze Fallback 'unbekannt 0%%'"
+                    "LLM-Antwort erfüllt Qualitätsanforderungen nicht – nutze Fallback '%s'",
+                    fallback,
                 )
-                return "unbekannt 0%"
+                return fallback
 
-            confidence_match = re.search(r"(\d{1,3})%", normalized_output)
-            confidence = int(confidence_match.group(1)) if confidence_match else 0
-            if confidence < 50:
-                if attempt < max_attempts:
-                    logger.info(
-                        "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – wiederhole Anfrage (%s/%s)",
+            if enforce_confidence:
+                confidence_match = re.search(r"(\d{1,3})%", normalized_output)
+                confidence = int(confidence_match.group(1)) if confidence_match else 0
+                if confidence < 50:
+                    if attempt < max_attempts:
+                        logger.info(
+                            "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – wiederhole Anfrage (%s/%s)",
+                            confidence,
+                            attempt + 1,
+                            max_attempts,
+                        )
+                        continue
+                    logger.warning(
+                        "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – verwende Ergebnis des letzten Versuchs",
                         confidence,
-                        attempt + 1,
-                        max_attempts,
                     )
-                    continue
-                logger.warning(
-                    "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – verwende Ergebnis des letzten Versuchs",
-                    confidence,
-                )
 
             io_logger.info(
                 "← Antwort (Modell='%s', Endpoint='%s'): %s",
@@ -406,6 +429,35 @@ class LLMClient:
             )
             raise
 
+    def infer_target_audience_for_listing(self, listing: Listing) -> Optional[str]:
+        """Use an LLM to infer the intended audience of a listing."""
+
+        prompt = _build_target_audience_prompt(listing)
+        if not prompt:
+            return None
+
+        logger.info(
+            "Leite Zielgruppeninferenz per LLM ein für Anzeige: %s", listing.url
+        )
+        logger.debug(
+            "Verwende Modell '%s' am Endpoint '%s' für Zielgruppenanalyse von Anzeige %s",
+            self.model,
+            self.endpoint,
+            listing.url,
+        )
+        try:
+            return self.query(
+                prompt,
+                normalizer=_normalize_target_audience_output,
+                enforce_confidence=False,
+                fallback="unbekannt",
+            )
+        except Exception:
+            logger.exception(
+                "Zielgruppeninferenz fehlgeschlagen für Anzeige: %s", listing.url
+            )
+            raise
+
 
 _default_client = LLMClient()
 
@@ -424,3 +476,19 @@ def infer_gender_for_listing(
         else LLMClient(model=model, endpoint=endpoint, timeout=timeout)
     )
     return client.infer_gender_for_listing(listing)
+
+
+def infer_target_audience_for_listing(
+    listing: Listing,
+    *,
+    model: str = DEFAULT_MODEL,
+    endpoint: str = DEFAULT_ENDPOINT,
+    timeout: float = DEFAULT_TIMEOUT,
+) -> Optional[str]:
+    client = (
+        _default_client
+        if (model, endpoint, timeout)
+        == (DEFAULT_MODEL, DEFAULT_ENDPOINT, DEFAULT_TIMEOUT)
+        else LLMClient(model=model, endpoint=endpoint, timeout=timeout)
+    )
+    return client.infer_target_audience_for_listing(listing)

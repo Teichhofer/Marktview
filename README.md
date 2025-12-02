@@ -50,6 +50,10 @@ separat starten; falls du lieber einen anderen Endpoint oder ein anderes Modell
 verwenden möchtest, kannst du das über die Parameter `endpoint`/`model` in
 `marktview.llm.infer_gender_for_listing` tun.
 
+Zusätzlich wird die Zielgruppe der Anzeige (männlich/weiblich/divers) aus dem
+Anzeigentext per LLM abgeleitet und in einer eigenen Spalte der Excel-Datei
+abgelegt.
+
 ## Struktur
 
 - `marktview/models.py` – Dataklasse für Anzeigen

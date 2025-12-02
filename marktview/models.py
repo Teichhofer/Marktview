@@ -14,6 +14,7 @@ class Listing:
     created_at: Optional[str] = None
     body: Optional[str] = None
     gender: str = "nicht angegeben"
+    target_audience: str = "unbekannt"
     financial_interest: str = "nicht angegeben"
     listing_id: str = "nicht angegeben"
     username: str = "nicht angegeben"
@@ -27,6 +28,7 @@ class Listing:
         if self.body:
             self.body = self.body.strip()
         self.gender = self.gender.strip()
+        self.target_audience = self.target_audience.strip()
         self.financial_interest = self.financial_interest.strip()
         self.listing_id = self.listing_id.strip()
         self.username = self.username.strip()

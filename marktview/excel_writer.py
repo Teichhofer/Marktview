@@ -16,6 +16,7 @@ HEADERS = [
     "Erstellungsdatum",
     "Text",
     "Geschlecht",
+    "Zielgruppe",
     "Geldinteresse",
     "Anzeigenkennung",
     "Benutzername",
@@ -34,9 +35,9 @@ def load_existing_listing_ids(path: str | Path) -> Set[str]:
 
     listing_ids: Set[str] = set()
     for row in worksheet.iter_rows(min_row=2, values_only=True):
-        if not row or len(row) < 8:
+        if not row or len(row) < 9:
             continue
-        listing_id = row[7]
+        listing_id = row[8]
         if listing_id:
             listing_ids.add(str(listing_id))
 
@@ -67,7 +68,8 @@ def write_listings_to_excel(listings: Iterable[Listing], path: str | Path) -> Pa
         worksheet.column_dimensions["F"].width = 20
         worksheet.column_dimensions["G"].width = 20
         worksheet.column_dimensions["H"].width = 20
-        worksheet.column_dimensions["I"].width = 30
+        worksheet.column_dimensions["I"].width = 20
+        worksheet.column_dimensions["J"].width = 30
 
     for listing in listings:
         if listing.listing_id and listing.listing_id in existing_ids:
@@ -81,6 +83,7 @@ def write_listings_to_excel(listings: Iterable[Listing], path: str | Path) -> Pa
                 listing.created_at,
                 listing.body,
                 listing.gender,
+                listing.target_audience,
                 listing.financial_interest,
                 listing.listing_id,
                 listing.username,
