@@ -1,6 +1,7 @@
 """Reusable page actions for handling cookie and age dialogs."""
 
 import asyncio
+import random
 from playwright.async_api import Page
 
 
@@ -35,5 +36,6 @@ async def wait_for_page_ready(page: Page, *, delay: float = 1.0) -> None:
     """Wait until the page reports network idle and give it a little extra time."""
 
     await page.wait_for_load_state("networkidle")
-    if delay > 0:
-        await asyncio.sleep(delay)
+    jitter = random.uniform(0.1, 2.0)
+    total_delay = delay + jitter if delay > 0 else jitter
+    await asyncio.sleep(total_delay)
