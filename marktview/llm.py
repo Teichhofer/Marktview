@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import threading
 import time
+from pathlib import Path
 from urllib.parse import urlsplit
 from typing import Optional
 
@@ -23,11 +24,29 @@ import requests
 from .models import Listing
 
 logger = logging.getLogger(__name__)
+io_logger = logging.getLogger(f"{__name__}.io")
+io_logger.propagate = False
 
 # Default Ollama setup. A lightweight model is used to keep startup fast.
 DEFAULT_MODEL = "llama3.2:1b"
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434/api/generate"
 DEFAULT_TIMEOUT = 30.0
+
+
+def configure_llm_logging(log_dir: str | Path) -> None:
+    """Configure a dedicated log file for LLM traffic."""
+
+    log_path = Path(log_dir) / "llm.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    for handler in io_logger.handlers:
+        if isinstance(handler, logging.FileHandler) and Path(handler.baseFilename) == log_path:
+            return
+
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    io_logger.addHandler(handler)
+    io_logger.setLevel(logging.INFO)
 
 
 class LLMInferenceError(RuntimeError):
@@ -152,92 +171,141 @@ def _build_gender_prompt(listing: Listing) -> str:
     return "\n\n".join(part for part in parts if part)
 
 
-def query_llm(
-    prompt: str,
-    *,
-    model: str = DEFAULT_MODEL,
-    endpoint: str = DEFAULT_ENDPOINT,
-    timeout: float = DEFAULT_TIMEOUT,
-) -> str:
-    """Send a prompt to the configured LLM endpoint and return its response."""
+class LLMClient:
+    """Encapsulate LLM interactions including logging and configuration."""
 
-    if endpoint == DEFAULT_ENDPOINT:
-        _ollama_service.ensure_running(model=model, endpoint=endpoint)
+    def __init__(
+        self,
+        *,
+        model: str = DEFAULT_MODEL,
+        endpoint: str = DEFAULT_ENDPOINT,
+        timeout: float = DEFAULT_TIMEOUT,
+        service: _LocalOllamaService | None = None,
+    ) -> None:
+        self.model = model
+        self.endpoint = endpoint
+        self.timeout = timeout
+        self._service = service or _ollama_service
 
-    logger.debug(
-        "Sende LLM-Anfrage: Modell='%s', Endpoint='%s', Timeout=%.1fs",
-        model,
-        endpoint,
-        timeout,
-    )
+    def query(self, prompt: str) -> str:
+        """Send a prompt to the configured LLM endpoint and return its response."""
 
-    def _send_request() -> requests.Response:
-        response = requests.post(
-            endpoint,
-            json={"model": model, "prompt": prompt, "stream": False},
-            timeout=timeout,
+        if self.endpoint == DEFAULT_ENDPOINT:
+            self._service.ensure_running(model=self.model, endpoint=self.endpoint)
+
+        logger.debug(
+            "Sende LLM-Anfrage: Modell='%s', Endpoint='%s', Timeout=%.1fs",
+            self.model,
+            self.endpoint,
+            self.timeout,
         )
-        response.raise_for_status()
-        return response
-
-    try:
-        response = _send_request()
-    except requests.exceptions.HTTPError as exc:
-        status = exc.response.status_code if exc.response is not None else ""
-        body = exc.response.text if exc.response is not None else "<no response>"
-        logger.error(
-            "LLM-HTTP-Fehler (Status %s) bei Endpoint '%s' mit Modell '%s': %s",
-            status,
-            endpoint,
-            model,
-            body,
+        io_logger.info(
+            "→ Prompt (Modell='%s', Endpoint='%s'):\n%s",
+            self.model,
+            self.endpoint,
+            prompt,
         )
-        if status == 404 and endpoint == DEFAULT_ENDPOINT:
-            # If we get a 404 from the default endpoint, the local server might not
-            # have been ready yet. Restart it once and retry the request so the
-            # user does not need to manually intervene.
-            logger.info(
-                "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu "
-                "und versuche es erneut …"
+
+        def _send_request() -> requests.Response:
+            response = requests.post(
+                self.endpoint,
+                json={"model": self.model, "prompt": prompt, "stream": False},
+                timeout=self.timeout,
             )
-            _ollama_service.stop()
-            _ollama_service.ensure_running(model=model, endpoint=endpoint)
+            response.raise_for_status()
+            return response
+
+        try:
             response = _send_request()
-        else:
-            if status == 404:
-                hint = (
-                    "Der LLM-Endpunkt antwortet mit 404 Not Found. Läuft Ollama "
-                    f"auf {endpoint}? Starte den Dienst mit 'ollama serve' oder "
-                    "passe den Endpunkt an."
-                )
-            else:
-                hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
-            raise LLMInferenceError(hint) from exc
-    except requests.exceptions.RequestException as exc:  # noqa: PERF203
-        logger.exception(
-            "LLM-Endpunkt konnte nicht erreicht werden: Endpoint='%s', Modell='%s'",
-            endpoint,
-            model,
-        )
-        hint = "LLM-Endpunkt konnte nicht erreicht werden."
-        if endpoint == DEFAULT_ENDPOINT:
-            hint += (
-                " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, "
-                "installiere bzw. starte den Dienst oder konfiguriere einen eigenen "
-                "Endpunkt."
+        except requests.exceptions.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else ""
+            body = exc.response.text if exc.response is not None else "<no response>"
+            logger.error(
+                "LLM-HTTP-Fehler (Status %s) bei Endpoint '%s' mit Modell '%s': %s",
+                status,
+                self.endpoint,
+                self.model,
+                body,
             )
-        raise LLMInferenceError(f"{hint} Details: {exc}") from exc
-    data = response.json()
-    output = data.get("response") or data.get("output")
-    if not output:
-        logger.error(
-            "LLM-Antwort ohne Text: Keys=%s, Endpoint='%s', Modell='%s'",
-            list(data.keys()),
-            endpoint,
-            model,
+            if status == 404 and self.endpoint == DEFAULT_ENDPOINT:
+                logger.info(
+                    "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu "
+                    "und versuche es erneut …"
+                )
+                self._service.stop()
+                self._service.ensure_running(model=self.model, endpoint=self.endpoint)
+                response = _send_request()
+            else:
+                if status == 404:
+                    hint = (
+                        "Der LLM-Endpunkt antwortet mit 404 Not Found. Läuft Ollama "
+                        f"auf {self.endpoint}? Starte den Dienst mit 'ollama serve' "
+                        "oder passe den Endpunkt an."
+                    )
+                else:
+                    hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
+                raise LLMInferenceError(hint) from exc
+        except requests.exceptions.RequestException as exc:  # noqa: PERF203
+            logger.exception(
+                "LLM-Endpunkt konnte nicht erreicht werden: Endpoint='%s', Modell='%s'",
+                self.endpoint,
+                self.model,
+            )
+            hint = "LLM-Endpunkt konnte nicht erreicht werden."
+            if self.endpoint == DEFAULT_ENDPOINT:
+                hint += (
+                    " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, "
+                    "installiere bzw. starte den Dienst oder konfiguriere einen "
+                    "eigenen Endpunkt."
+                )
+            raise LLMInferenceError(f"{hint} Details: {exc}") from exc
+
+        data = response.json()
+        output = data.get("response") or data.get("output")
+        if not output:
+            logger.error(
+                "LLM-Antwort ohne Text: Keys=%s, Endpoint='%s', Modell='%s'",
+                list(data.keys()),
+                self.endpoint,
+                self.model,
+            )
+            raise LLMInferenceError("Antwort enthält keinen Text.")
+
+        cleaned_output = str(output).strip()
+        io_logger.info(
+            "← Antwort (Modell='%s', Endpoint='%s'): %s",
+            self.model,
+            self.endpoint,
+            cleaned_output,
         )
-        raise LLMInferenceError("Antwort enthält keinen Text.")
-    return str(output).strip()
+        return cleaned_output
+
+    def infer_gender_for_listing(self, listing: Listing) -> Optional[str]:
+        """Use an LLM to guess the gender when it is missing on the site."""
+
+        prompt = _build_gender_prompt(listing)
+        if not prompt:
+            return None
+
+        logger.info(
+            "Leite Geschlechtsinferenz per LLM ein für Anzeige: %s", listing.url
+        )
+        logger.debug(
+            "Verwende Modell '%s' am Endpoint '%s' für Anzeige %s",
+            self.model,
+            self.endpoint,
+            listing.url,
+        )
+        try:
+            return self.query(prompt)
+        except Exception:
+            logger.exception(
+                "Geschlechtsinferenz fehlgeschlagen für Anzeige: %s", listing.url
+            )
+            raise
+
+
+_default_client = LLMClient()
 
 
 def infer_gender_for_listing(
@@ -247,23 +315,10 @@ def infer_gender_for_listing(
     endpoint: str = DEFAULT_ENDPOINT,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Optional[str]:
-    """Use an LLM to guess the gender when it is missing on the site."""
-
-    prompt = _build_gender_prompt(listing)
-    if not prompt:
-        return None
-
-    logger.info("Leite Geschlechtsinferenz per LLM ein für Anzeige: %s", listing.url)
-    logger.debug(
-        "Verwende Modell '%s' am Endpoint '%s' für Anzeige %s",
-        model,
-        endpoint,
-        listing.url,
+    client = (
+        _default_client
+        if (model, endpoint, timeout)
+        == (DEFAULT_MODEL, DEFAULT_ENDPOINT, DEFAULT_TIMEOUT)
+        else LLMClient(model=model, endpoint=endpoint, timeout=timeout)
     )
-    try:
-        return query_llm(prompt, model=model, endpoint=endpoint, timeout=timeout)
-    except Exception:
-        logger.exception(
-            "Geschlechtsinferenz fehlgeschlagen für Anzeige: %s", listing.url
-        )
-        raise
+    return client.infer_gender_for_listing(listing)
