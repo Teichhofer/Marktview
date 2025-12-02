@@ -150,12 +150,49 @@ def query_llm(
     if endpoint == DEFAULT_ENDPOINT:
         _ollama_service.ensure_running(model=model, endpoint=endpoint)
 
-    response = requests.post(
-        endpoint,
-        json={"model": model, "prompt": prompt, "stream": False},
-        timeout=timeout,
-    )
-    response.raise_for_status()
+    def _send_request() -> requests.Response:
+        response = requests.post(
+            endpoint,
+            json={"model": model, "prompt": prompt, "stream": False},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response
+
+    try:
+        response = _send_request()
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else ""
+        if status == 404 and endpoint == DEFAULT_ENDPOINT:
+            # If we get a 404 from the default endpoint, the local server might not
+            # have been ready yet. Restart it once and retry the request so the
+            # user does not need to manually intervene.
+            logger.info(
+                "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu "
+                "und versuche es erneut …"
+            )
+            _ollama_service.stop()
+            _ollama_service.ensure_running(model=model, endpoint=endpoint)
+            response = _send_request()
+        else:
+            if status == 404:
+                hint = (
+                    "Der LLM-Endpunkt antwortet mit 404 Not Found. Läuft Ollama "
+                    f"auf {endpoint}? Starte den Dienst mit 'ollama serve' oder "
+                    "passe den Endpunkt an."
+                )
+            else:
+                hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
+            raise LLMInferenceError(hint) from exc
+    except requests.exceptions.RequestException as exc:  # noqa: PERF203
+        hint = "LLM-Endpunkt konnte nicht erreicht werden."
+        if endpoint == DEFAULT_ENDPOINT:
+            hint += (
+                " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, "
+                "installiere bzw. starte den Dienst oder konfiguriere einen eigenen "
+                "Endpunkt."
+            )
+        raise LLMInferenceError(f"{hint} Details: {exc}") from exc
     data = response.json()
     output = data.get("response") or data.get("output")
     if not output:
