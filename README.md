@@ -21,6 +21,7 @@ python -m marktview \
   --max-pages 50 \
   --concurrency 2 \
   --headless  # oder --no-headless für sichtbaren Browser \
+  --clear  # löscht Logs und aktuelle Excel-Ausgabedatei
   --loop  # wiederholt den Durchlauf alle 5 Minuten bis Strg+C
 ```
 

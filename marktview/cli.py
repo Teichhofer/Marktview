@@ -48,6 +48,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Alle 5 Minuten erneut ausführen, bis Strg+C gedrückt wird",
     )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Logs und aktuelle Ausgabedatei löschen, ohne zu scrapen",
+    )
     return parser
 
 
@@ -78,8 +83,32 @@ async def run_once(args: argparse.Namespace) -> Path:
     return write_listings_to_excel(listings, output_path)
 
 
+def clear_artifacts(output_path: Path, log_dir: Path) -> None:
+    if output_path.exists():
+        output_path.unlink()
+
+    if log_dir.exists():
+        for log_file in log_dir.iterdir():
+            if log_file.is_file():
+                log_file.unlink()
+        # Entferne leeres Verzeichnis, falls möglich
+        try:
+            log_dir.rmdir()
+        except OSError:
+            # Verzeichnis ist nicht leer oder konnte nicht entfernt werden
+            pass
+
+
 def main() -> None:
+    args = parse_args()
+
     log_dir = Path("log")
+
+    if args.clear:
+        clear_artifacts(Path(args.output), log_dir)
+        print("Logs und Ausgabedatei wurden gelöscht.")
+        return
+
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
@@ -89,8 +118,6 @@ def main() -> None:
             logging.FileHandler(log_dir / "marktview.log"),
         ],
     )
-
-    args = parse_args()
 
     try:
         if args.loop:
