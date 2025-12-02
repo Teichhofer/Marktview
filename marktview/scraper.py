@@ -8,6 +8,7 @@ from playwright.async_api import BrowserContext
 
 from .config import NETWORK_IDLE_DELAY, PAGE_READY_DELAY
 from .excel_writer import write_listings_to_excel
+from .llm import infer_gender_for_listing
 from .models import Listing
 from .page_actions import accept_cookies, confirm_age, wait_for_page_ready
 from .parsers import parse_listing_details, parse_listings
@@ -25,6 +26,21 @@ async def _populate_listing(
             print(f"[INFO] Lade Details für: {listing.title}")
             await parse_listing_details(detail_page, listing)
             await asyncio.sleep(NETWORK_IDLE_DELAY)
+
+            if listing.gender.lower() == "nicht angegeben":
+                try:
+                    llm_gender = await asyncio.to_thread(
+                        infer_gender_for_listing,
+                        listing,
+                    )
+                    if llm_gender:
+                        listing.gender = llm_gender
+                except Exception as exc:  # noqa: BLE001
+                    print(
+                        "[WARN] Geschlecht konnte nicht per LLM ermittelt werden: "
+                        f"{exc}"
+                    )
+
             if listing.listing_id:
                 known_listing_ids.add(listing.listing_id)
         except Exception as exc:  # noqa: BLE001

@@ -9,4 +9,5 @@ __all__ = [
     "excel_writer",
     "cli",
     "ollama_embeddings",
+    "llm",
 ]
