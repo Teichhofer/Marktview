@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import time
 from pathlib import Path
 
 from playwright.async_api import async_playwright
@@ -41,6 +42,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=config.HEADLESS,
         help="Browser im Headless-Modus starten",
     )
+    parser.add_argument(
+        "--loop",
+        action="store_true",
+        help="Alle 5 Minuten erneut ausführen, bis Strg+C gedrückt wird",
+    )
     return parser
 
 
@@ -48,8 +54,7 @@ def parse_args() -> argparse.Namespace:
     return build_parser().parse_args()
 
 
-async def run() -> Path:
-    args = parse_args()
+async def run_once(args: argparse.Namespace) -> Path:
     output_path = Path(args.output)
 
     async with async_playwright() as playwright:
@@ -73,7 +78,18 @@ async def run() -> Path:
 
 
 def main() -> None:
-    asyncio.run(run())
+    args = parse_args()
+
+    try:
+        if args.loop:
+            while True:
+                asyncio.run(run_once(args))
+                print("Erneuter Durchlauf in 5 Minuten. Abbruch mit Strg+C.")
+                time.sleep(300)
+        else:
+            asyncio.run(run_once(args))
+    except KeyboardInterrupt:
+        print("Loop beendet.")
 
 
 if __name__ == "__main__":
