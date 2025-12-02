@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import atexit
 import logging
+import math
+import os
 import shutil
 import subprocess
 import threading
@@ -63,6 +65,10 @@ class _LocalOllamaService:
         self._lock = threading.Lock()
         self._process: subprocess.Popen[str] | None = None
         self._started_by_app = False
+
+    def _suggested_thread_count(self) -> int:
+        cpu_count = os.cpu_count() or 1
+        return max(1, math.ceil(cpu_count * 0.5))
 
     def _base_url(self, endpoint: str) -> str:
         parsed = urlsplit(endpoint)
@@ -125,12 +131,19 @@ class _LocalOllamaService:
                 )
 
             if not reachable:
-                logger.info("Starte lokalen Ollama-Server …")
+                thread_count = self._suggested_thread_count()
+                env = os.environ.copy()
+                env["OLLAMA_NUM_THREADS"] = str(thread_count)
+
+                logger.info(
+                    "Starte lokalen Ollama-Server mit %s Threads …", thread_count
+                )
                 self._process = subprocess.Popen(
                     [binary, "serve"],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.STDOUT,
                     text=True,
+                    env=env,
                 )
                 self._started_by_app = True
             elif self._model_exists(base_url, model):
