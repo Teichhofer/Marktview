@@ -11,6 +11,7 @@ from playwright.async_api import async_playwright
 
 from . import config
 from .excel_writer import load_existing_listing_ids, write_listings_to_excel
+from .llm import configure_llm_logging
 from .scraper import scrape_pages
 
 
@@ -128,6 +129,7 @@ def main() -> None:
         return
 
     log_dir.mkdir(parents=True, exist_ok=True)
+    configure_llm_logging(log_dir)
 
     logging.basicConfig(
         level=logging.INFO,
