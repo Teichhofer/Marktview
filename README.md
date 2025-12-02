@@ -20,7 +20,8 @@ python -m marktview \
   --output anzeigen.xlsx \
   --max-pages 50 \
   --concurrency 2 \
-  --headless  # oder --no-headless für sichtbaren Browser
+  --headless  # oder --no-headless für sichtbaren Browser \
+  --loop  # wiederholt den Durchlauf alle 5 Minuten bis Strg+C
 ```
 
 Unter PowerShell bitte den Zeilenumbruch-Operator `` ` `` verwenden (Backslash verursacht dort den gezeigten Fehler):
