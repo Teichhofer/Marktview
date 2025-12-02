@@ -201,8 +201,11 @@ def _build_target_audience_prompt(listing: Listing) -> str:
         parts.append(f"Nutzername: {listing.username}")
 
     question = (
-        "Für welches Geschlecht richtet sich diese Anzeige? Antworte nur mit einem der Wörter "
-        "'männlich', 'weiblich', 'divers', 'bi' oder 'unbekannt'. Keine weiteren Wörter, keine Begründung."
+        "Du bist ein präziser Textklassifizierer. Bestimme, an welches Geschlecht sich die Anzeige richtet "
+        "(angesprochene Zielgruppe, nicht das Geschlecht der schreibenden Person). Wähle strikt eines der "
+        "Wörter 'männlich', 'weiblich', 'divers' (für trans/non-binär), 'bi' (wenn explizit beide oder alle gemeint) "
+        "oder 'unbekannt', falls der Text keine eindeutigen Hinweise liefert. Wenn der Text mehrere Geschlechter anspricht, "
+        "nutze 'bi'. Antworte ausschließlich mit genau diesem einen Wort, ohne Begründung oder weitere Zeichen."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
@@ -239,12 +242,20 @@ def _normalize_target_audience_output(raw_output: str) -> str:
     cleaned = raw_output.replace("<", " ").replace(">", " ").strip()
     cleaned = " ".join(cleaned.split())
 
-    audience_pattern = re.compile(r"\b(weiblich|männlich|divers|bi|unbekannt)\b", re.IGNORECASE)
-    match = audience_pattern.search(cleaned)
-    if not match:
-        raise LLMInferenceError("Antwort enthält keine erkennbaren Zielgruppe.")
+    synonyms = {
+        "weiblich": {"weiblich", "frau", "frauen", "damen"},
+        "männlich": {"männlich", "mann", "männer", "herren"},
+        "divers": {"divers", "nonbinär", "non-binary", "trans", "trans*", "transgender"},
+        "bi": {"bi", "bisexuell", "beide", "alle"},
+        "unbekannt": {"unbekannt", "unklar", "k.A."},
+    }
 
-    return match.group(1).lower()
+    for normalized, keywords in synonyms.items():
+        pattern = re.compile(r"\b(" + "|".join(re.escape(k) for k in keywords) + r")\b", re.IGNORECASE)
+        if pattern.search(cleaned):
+            return normalized
+
+    raise LLMInferenceError("Antwort enthält keine erkennbaren Zielgruppe.")
 
 
 class LLMClient:
