@@ -44,6 +44,9 @@ async def _populate_listing(
                         exc_info=True,
                     )
 
+                if listing.gender.lower() == "nicht angegeben":
+                    listing.gender = "unbekannt 0%"
+
             if listing.listing_id:
                 known_listing_ids.add(listing.listing_id)
         except Exception as exc:  # noqa: BLE001
