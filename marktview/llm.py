@@ -164,9 +164,9 @@ def _build_gender_prompt(listing: Listing) -> str:
     if listing.username and listing.username != "nicht angegeben":
         parts.append(f"Nutzername: {listing.username}")
     question = (
-        "Antworte nur mit dem Warscheinlichten geschlecht des Anzeigen Autors plus "
-        "der Prozentualen Warscheinlichkeit wie sicher du bist das dieses Geschlecht "
-        "stimmt"
+        "Antworte ausschließlich mit einer einzigen Zeile im Format "
+        "'Geschlecht: <weiblich/männlich/divers/unbekannt>, Wahrscheinlichkeit: <0-100>%'. "
+        "Keine weiteren Wörter, keine Namen, keine Erklärungen oder Beispiele."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
