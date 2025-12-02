@@ -168,7 +168,8 @@ def _build_gender_prompt(listing: Listing) -> str:
     question = (
         "Antworte ausschließlich mit einer einzigen Zeile im Format "
         "'weiblich/männlich/divers/unbekannt <0-100>%'. Keine spitzen Klammern, "
-        "keine weiteren Wörter, keine Namen, keine Erklärungen oder Beispiele."
+        "keine weiteren Wörter, keine Namen, keine Erklärungen oder Beispiele. "
+        "Gib nur das wahrscheinlichste Geschlecht mit passender Wahrscheinlichkeit an."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
