@@ -7,7 +7,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 
 from . import config
-from .excel_writer import write_listings_to_excel
+from .excel_writer import load_existing_listing_ids, write_listings_to_excel
 from .scraper import scrape_pages
 
 
@@ -56,11 +56,14 @@ async def run() -> Path:
         browser = await playwright.chromium.launch(headless=args.headless)
         context = await browser.new_context()
 
+        existing_listing_ids = load_existing_listing_ids(output_path)
+
         listings = await scrape_pages(
             context,
             args.start_url,
             max_pages=args.max_pages,
             concurrency_limit=args.concurrency,
+            known_listing_ids=existing_listing_ids,
             progress_path=output_path,
         )
 
