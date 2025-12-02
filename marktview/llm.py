@@ -244,7 +244,7 @@ class LLMClient:
             response.raise_for_status()
             return response
 
-        max_attempts = 3
+        max_attempts = 10
         for attempt in range(1, max_attempts + 1):
             try:
                 response = _send_request()
@@ -277,7 +277,14 @@ class LLMClient:
                         )
                     else:
                         hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
-                    raise LLMInferenceError(hint) from exc
+                    if attempt == max_attempts:
+                        raise LLMInferenceError(hint) from exc
+                    logger.info(
+                        "HTTP-Fehler – wiederhole Anfrage (%s/%s)",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
             except requests.exceptions.RequestException as exc:  # noqa: PERF203
                 logger.exception(
                     "LLM-Endpunkt konnte nicht erreicht werden: Endpoint='%s', Modell='%s'",
@@ -291,7 +298,14 @@ class LLMClient:
                         "installiere bzw. starte den Dienst oder konfiguriere einen "
                         "eigenen Endpunkt."
                     )
-                raise LLMInferenceError(f"{hint} Details: {exc}") from exc
+                if attempt == max_attempts:
+                    raise LLMInferenceError(f"{hint} Details: {exc}") from exc
+                logger.info(
+                    "Netzwerkfehler – wiederhole Anfrage (%s/%s)",
+                    attempt + 1,
+                    max_attempts,
+                )
+                continue
 
             data = response.json()
             output = data.get("response") or data.get("output")
@@ -319,18 +333,33 @@ class LLMClient:
                         max_attempts,
                     )
                     continue
-                raise
+                if attempt < max_attempts:
+                    logger.info(
+                        "LLM-Antwort ohne erkennbares Geschlecht – wiederhole Anfrage (%s/%s)",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                logger.warning(
+                    "LLM-Antwort erfüllt Qualitätsanforderungen nicht – nutze Fallback 'unbekannt 0%%'"
+                )
+                return "unbekannt 0%"
 
             confidence_match = re.search(r"(\d{1,3})%", normalized_output)
             confidence = int(confidence_match.group(1)) if confidence_match else 0
-            if confidence < 50 and attempt < max_attempts:
-                logger.info(
-                    "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – wiederhole Anfrage (%s/%s)",
+            if confidence < 50:
+                if attempt < max_attempts:
+                    logger.info(
+                        "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – wiederhole Anfrage (%s/%s)",
+                        confidence,
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                logger.warning(
+                    "LLM-Antwort mit geringer Wahrscheinlichkeit (%s%%) – verwende Ergebnis des letzten Versuchs",
                     confidence,
-                    attempt + 1,
-                    max_attempts,
                 )
-                continue
 
             io_logger.info(
                 "← Antwort (Modell='%s', Endpoint='%s'): %s",
