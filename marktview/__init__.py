@@ -8,4 +8,5 @@ __all__ = [
     "scraper",
     "excel_writer",
     "cli",
+    "ollama_embeddings",
 ]

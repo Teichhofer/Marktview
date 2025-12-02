@@ -53,3 +53,39 @@ Parameter sind optional; ohne Flags werden Standardwerte aus `marktview/config.p
 
 - Die Anwendung startet standardmäßig mit sichtbarem Browser; mit `--headless` lässt sich der Headless-Modus aktivieren.
 - Fehlerhafte Seiten werden protokolliert; wenn keine Anzeigen gefunden werden, wird ein HTML-Dump der Seite (`dump_page_<nr>.html`) abgelegt.
+
+## Optionale Embeddings mit Ollama
+
+Wenn du die Texte der Anzeigen lokal vektorisieren möchtest, kannst du ein Ollama-Backend mit dem Modell `qwen3-embedding:0.6b` verwenden.
+
+1. Ollama installieren und den Embedding-Server starten:
+
+   ```bash
+   # Installation abhängig von Betriebssystem, siehe https://ollama.com/download
+   ollama serve
+
+   # Einmalig das Modell herunterladen
+   ollama pull qwen3-embedding:0.6b
+   ```
+
+2. In Python die Helfer aus `marktview.ollama_embeddings` nutzen (Default-Endpunkt: `http://localhost:11434/api/embeddings`):
+
+   ```python
+   from marktview.models import Listing
+   from marktview.ollama_embeddings import embed_listing, embed_listings
+
+   listing = Listing(
+       title="Beispielanzeige",
+       url="https://example.com/anzeige",
+       body="Kurzbeschreibung der Anzeige",
+       postal_code="10115",
+   )
+
+   # Einzelnes Embedding erzeugen
+   vector = embed_listing(listing)
+
+   # Mehrere Anzeigen sequentiell vektorisieren
+   vectors = embed_listings([listing], model="qwen3-embedding:0.6b")
+   ```
+
+`embed_listing` und `embed_listings` kürzen den Prompt auf 1500 Zeichen, um das Payload kompakt zu halten. Für andere Host-/Port-Kombinationen kannst du den Parameter `endpoint` überschreiben.
