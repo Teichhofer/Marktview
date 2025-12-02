@@ -40,6 +40,15 @@ Aufruf beginnt mit `python -m marktview`.
 
 Parameter sind optional; ohne Flags werden Standardwerte aus `marktview/config.py` verwendet.
 
+### Geschlechtsinferenz ohne manuelles LLM-Setup
+
+Bei fehlender Geschlechtsangabe startet die Anwendung automatisch eine lokale
+Ollama-Instanz (`ollama serve`), zieht bei Bedarf das Modell `llama3.2:1b` und
+nutzt diese für die Anfrage. Du musst den Dienst nicht separat starten; falls
+du lieber einen anderen Endpoint oder ein anderes Modell verwenden möchtest,
+kannst du das über die Parameter `endpoint`/`model` in
+`marktview.llm.infer_gender_for_listing` tun.
+
 ## Struktur
 
 - `marktview/models.py` – Dataklasse für Anzeigen
