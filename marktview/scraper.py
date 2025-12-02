@@ -9,7 +9,7 @@ from playwright.async_api import BrowserContext
 
 from .config import NETWORK_IDLE_DELAY, PAGE_READY_DELAY
 from .excel_writer import write_listings_to_excel
-from .llm import infer_gender_for_listing
+from .llm import infer_gender_for_listing, infer_target_audience_for_listing
 from .models import Listing
 from .page_actions import accept_cookies, confirm_age, wait_for_page_ready
 from .parsers import parse_listing_details, parse_listings
@@ -46,6 +46,19 @@ async def _populate_listing(
 
                 if listing.gender.lower() == "nicht angegeben":
                     listing.gender = "unbekannt 0%"
+
+            try:
+                audience = await asyncio.to_thread(
+                    infer_target_audience_for_listing,
+                    listing,
+                )
+                if audience:
+                    listing.target_audience = audience
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Zielgruppe konnte nicht per LLM ermittelt werden: %s", exc,
+                    exc_info=True,
+                )
 
             if listing.listing_id:
                 known_listing_ids.add(listing.listing_id)
