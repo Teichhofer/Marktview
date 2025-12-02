@@ -239,72 +239,90 @@ class LLMClient:
             response.raise_for_status()
             return response
 
-        try:
-            response = _send_request()
-        except requests.exceptions.HTTPError as exc:
-            status = exc.response.status_code if exc.response is not None else ""
-            body = exc.response.text if exc.response is not None else "<no response>"
-            logger.error(
-                "LLM-HTTP-Fehler (Status %s) bei Endpoint '%s' mit Modell '%s': %s",
-                status,
-                self.endpoint,
-                self.model,
-                body,
-            )
-            if status == 404 and self.endpoint == DEFAULT_ENDPOINT:
-                logger.info(
-                    "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu "
-                    "und versuche es erneut …"
-                )
-                self._service.stop()
-                self._service.ensure_running(model=self.model, endpoint=self.endpoint)
+        max_attempts = 2
+        for attempt in range(1, max_attempts + 1):
+            try:
                 response = _send_request()
-            else:
-                if status == 404:
-                    hint = (
-                        "Der LLM-Endpunkt antwortet mit 404 Not Found. Läuft Ollama "
-                        f"auf {self.endpoint}? Starte den Dienst mit 'ollama serve' "
-                        "oder passe den Endpunkt an."
-                    )
-                else:
-                    hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
-                raise LLMInferenceError(hint) from exc
-        except requests.exceptions.RequestException as exc:  # noqa: PERF203
-            logger.exception(
-                "LLM-Endpunkt konnte nicht erreicht werden: Endpoint='%s', Modell='%s'",
-                self.endpoint,
-                self.model,
-            )
-            hint = "LLM-Endpunkt konnte nicht erreicht werden."
-            if self.endpoint == DEFAULT_ENDPOINT:
-                hint += (
-                    " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, "
-                    "installiere bzw. starte den Dienst oder konfiguriere einen "
-                    "eigenen Endpunkt."
+            except requests.exceptions.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else ""
+                body = exc.response.text if exc.response is not None else "<no response>"
+                logger.error(
+                    "LLM-HTTP-Fehler (Status %s) bei Endpoint '%s' mit Modell '%s': %s",
+                    status,
+                    self.endpoint,
+                    self.model,
+                    body,
                 )
-            raise LLMInferenceError(f"{hint} Details: {exc}") from exc
+                if status == 404 and self.endpoint == DEFAULT_ENDPOINT:
+                    logger.info(
+                        "LLM-Endpunkt antwortet mit 404. Starte lokalen Ollama-Server neu "
+                        "und versuche es erneut …"
+                    )
+                    self._service.stop()
+                    self._service.ensure_running(
+                        model=self.model, endpoint=self.endpoint
+                    )
+                    response = _send_request()
+                else:
+                    if status == 404:
+                        hint = (
+                            "Der LLM-Endpunkt antwortet mit 404 Not Found. Läuft Ollama "
+                            f"auf {self.endpoint}? Starte den Dienst mit 'ollama serve' "
+                            "oder passe den Endpunkt an."
+                        )
+                    else:
+                        hint = f"LLM-Anfrage fehlgeschlagen (HTTP {status})."
+                    raise LLMInferenceError(hint) from exc
+            except requests.exceptions.RequestException as exc:  # noqa: PERF203
+                logger.exception(
+                    "LLM-Endpunkt konnte nicht erreicht werden: Endpoint='%s', Modell='%s'",
+                    self.endpoint,
+                    self.model,
+                )
+                hint = "LLM-Endpunkt konnte nicht erreicht werden."
+                if self.endpoint == DEFAULT_ENDPOINT:
+                    hint += (
+                        " Ist Ollama installiert und läuft 'ollama serve'? Falls nicht, "
+                        "installiere bzw. starte den Dienst oder konfiguriere einen "
+                        "eigenen Endpunkt."
+                    )
+                raise LLMInferenceError(f"{hint} Details: {exc}") from exc
 
-        data = response.json()
-        output = data.get("response") or data.get("output")
-        if not output:
-            logger.error(
-                "LLM-Antwort ohne Text: Keys=%s, Endpoint='%s', Modell='%s'",
-                list(data.keys()),
-                self.endpoint,
+            data = response.json()
+            output = data.get("response") or data.get("output")
+            if not output:
+                logger.error(
+                    "LLM-Antwort ohne Text: Keys=%s, Endpoint='%s', Modell='%s'",
+                    list(data.keys()),
+                    self.endpoint,
+                    self.model,
+                )
+                raise LLMInferenceError("Antwort enthält keinen Text.")
+
+            cleaned_output = str(output).strip()
+
+            try:
+                normalized_output = _normalize_gender_output(cleaned_output)
+            except LLMInferenceError as exc:
+                if (
+                    "Antwort enthält keine Prozentangabe." in str(exc)
+                    and attempt < max_attempts
+                ):
+                    logger.info(
+                        "LLM-Antwort ohne Prozentangabe – wiederhole Anfrage (%s/%s)",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                raise
+
+            io_logger.info(
+                "← Antwort (Modell='%s', Endpoint='%s'): %s",
                 self.model,
+                self.endpoint,
+                cleaned_output,
             )
-            raise LLMInferenceError("Antwort enthält keinen Text.")
-
-        cleaned_output = str(output).strip()
-        normalized_output = _normalize_gender_output(cleaned_output)
-
-        io_logger.info(
-            "← Antwort (Modell='%s', Endpoint='%s'): %s",
-            self.model,
-            self.endpoint,
-            cleaned_output,
-        )
-        return normalized_output
+            return normalized_output
 
     def infer_gender_for_listing(self, listing: Listing) -> Optional[str]:
         """Use an LLM to guess the gender when it is missing on the site."""
