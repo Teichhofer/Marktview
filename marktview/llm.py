@@ -207,7 +207,8 @@ def _build_target_audience_prompt(listing: Listing) -> str:
         "(angesprochene Zielgruppe, nicht das Geschlecht der schreibenden Person). Wähle strikt eines der "
         "Wörter 'männlich', 'weiblich', 'divers' (für trans/non-binär), 'bi' (wenn explizit beide oder alle gemeint) "
         "oder 'unbekannt', falls der Text keine eindeutigen Hinweise liefert. Wenn der Text mehrere Geschlechter anspricht, "
-        "nutze 'bi'. Antworte ausschließlich mit genau diesem einen Wort, ohne Begründung oder weitere Zeichen."
+        "nutze 'bi'. Formulierungen wie 'Ich suche eine Lady' oder 'ich suche W' sind eindeutige Hinweise auf 'weiblich'. "
+        "Antworte ausschließlich mit genau diesem einen Wort, ohne Begründung oder weitere Zeichen."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
