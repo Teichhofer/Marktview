@@ -157,7 +157,7 @@ def test_local_service_helpers(monkeypatch):
     service = llm._LocalOllamaService()
     monkeypatch.setattr(llm.requests, "get", lambda *_args, **_kwargs: DummyResponse({"models": []}))
     assert service._base_url("http://localhost:11434/api/generate") == "http://localhost:11434"
-    assert service._model_exists("http://localhost:11434", "gemma3:1b") is False
+    assert service._model_exists("http://localhost:11434", "gemma3:4b") is False
 
     called = {}
 
@@ -167,5 +167,5 @@ def test_local_service_helpers(monkeypatch):
 
     monkeypatch.setattr(llm.subprocess, "run", fake_run)
     monkeypatch.setattr(service, "_wait_until_ready", lambda *_: None)
-    service._pull_model("ollama", "gemma3:1b")
-    assert called["cmd"][1:] == ["pull", "gemma3:1b"]
+    service._pull_model("ollama", "gemma3:4b")
+    assert called["cmd"][1:] == ["pull", "gemma3:4b"]
