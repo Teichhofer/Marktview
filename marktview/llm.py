@@ -13,15 +13,16 @@ import atexit
 import logging
 import math
 import os
+import re
 import shutil
 import subprocess
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 from typing import Optional
+from urllib.parse import urlsplit
 
-import re
+import textwrap
 
 import requests
 
@@ -171,47 +172,61 @@ atexit.register(_ollama_service.stop)
 def _build_gender_prompt(listing: Listing) -> str:
     """Construct the German prompt required for gender inference."""
 
-    parts = ["Anzeigetext:"]
-    if listing.title:
-        parts.append(f"Titel: {listing.title}")
-    if listing.body:
-        parts.append(listing.body)
-    if listing.username and listing.username != "nicht angegeben":
-        parts.append(f"Nutzername: {listing.username}")
-    question = (
-        "Antworte ausschließlich mit einer einzigen Zeile im Format "
-        "'weiblich/männlich/divers/unbekannt 0-100%'. Keine spitzen Klammern oder andere Sonderzeichen, "
-        "keine weiteren Wörter, keine Namen, keine Erklärungen oder Beispiele. "
-        "Antworte nur mit dem wahrscheinlichste Geschlecht und der Wahrscheinlichkeit. "
-        "Die Prozentzahl darf nicht 50% sein. "
-        "Passagen wie 'ich bin männlich', 'ich bin m' oder ähnliche Selbstbeschreibungen "
-        "sind eindeutige Hinweise auf männlich."
-    )
-    parts.append(question)
-    return "\n\n".join(part for part in parts if part)
+    parts = [
+        "Kontext: Du bist ein präziser Klassifizierer für Kleinanzeigen in deutscher Sprache.",
+        "Nutze ausschließlich die strukturierten Anzeigendaten, um das Geschlecht der schreibenden Person einzuschätzen.",
+        "Anzeigendaten (alle Felder sind bereits bereinigt):",
+        _format_listing_details(listing),
+        "Aufgabe: Bestimme das wahrscheinliche Geschlecht der schreibenden Person.",
+        "Antwortformat: Nur eine Zeile im Format 'weiblich/männlich/divers/unbekannt 0-100%'.",
+        "Regeln:",
+        "- Keine spitzen Klammern, keine Sonderzeichen, keine zusätzlichen Wörter oder Namen.",
+        "- Der Prozentwert darf nicht 50% sein und muss eine ganze Zahl sein.",
+        "- Formulierungen wie 'ich bin männlich', 'ich bin m' oder ähnliche Selbstbeschreibungen sind eindeutige Hinweise auf männlich.",
+    ]
+    return "\n".join(part for part in parts if part)
 
 
 def _build_target_audience_prompt(listing: Listing) -> str:
     """Construct a prompt to infer the intended audience of the listing."""
 
-    parts = ["Anzeigetext:"]
-    if listing.title:
-        parts.append(f"Titel: {listing.title}")
-    if listing.body:
-        parts.append(listing.body)
-    if listing.username and listing.username != "nicht angegeben":
-        parts.append(f"Nutzername: {listing.username}")
+    parts = [
+        "Kontext: Du bist ein präziser Textklassifizierer für Kleinanzeigen in deutscher Sprache.",
+        "Nutze ausschließlich die strukturierten Anzeigendaten, um die angesprochene Zielgruppe zu bestimmen.",
+        "Anzeigendaten (alle Felder sind bereits bereinigt):",
+        _format_listing_details(listing),
+        "Aufgabe: Bestimme, an welches Geschlecht sich die Anzeige richtet (Zielgruppe, nicht die schreibende Person).",
+        "Antwortformat: Nur eines der Wörter 'männlich', 'weiblich', 'divers', 'bi' (wenn explizit mehrere Geschlechter gemeint sind) oder 'unbekannt'.",
+        "Regeln:",
+        "- Keine Begründungen oder zusätzlichen Zeichen.",
+        "- Formulierungen wie 'Ich suche eine Lady' oder 'ich suche W' sind eindeutige Hinweise auf 'weiblich'.",
+    ]
+    return "\n".join(part for part in parts if part)
 
-    question = (
-        "Du bist ein präziser Textklassifizierer. Bestimme, an welches Geschlecht sich die Anzeige richtet "
-        "(angesprochene Zielgruppe, nicht das Geschlecht der schreibenden Person). Wähle strikt eines der "
-        "Wörter 'männlich', 'weiblich', 'divers' (für trans/non-binär), 'bi' (wenn explizit beide oder alle gemeint) "
-        "oder 'unbekannt', falls der Text keine eindeutigen Hinweise liefert. Wenn der Text mehrere Geschlechter anspricht, "
-        "nutze 'bi'. Formulierungen wie 'Ich suche eine Lady' oder 'ich suche W' sind eindeutige Hinweise auf 'weiblich'. "
-        "Antworte ausschließlich mit genau diesem einen Wort, ohne Begründung oder weitere Zeichen."
-    )
-    parts.append(question)
-    return "\n\n".join(part for part in parts if part)
+
+def _format_listing_details(listing: Listing) -> str:
+    """Render listing data in a structured, multi-line format for prompts."""
+
+    fields = [
+        ("Titel", listing.title or "nicht angegeben"),
+        ("Beschreibung", listing.body or "nicht angegeben"),
+        ("Nutzername", listing.username or "nicht angegeben"),
+        ("Postleitzahl", listing.postal_code or "nicht angegeben"),
+        ("Erstellt am", listing.created_at or "nicht angegeben"),
+        ("Listing-ID", listing.listing_id or "nicht angegeben"),
+        ("URL", listing.url or "nicht angegeben"),
+    ]
+
+    lines = []
+    for label, value in fields:
+        clean_value = " ".join(str(value).split()) if isinstance(value, str) else value
+        if label == "Beschreibung" and isinstance(value, str):
+            clean_value = textwrap.indent(value.strip() or "nicht angegeben", "  ")
+            lines.append(f"- {label}:\n{clean_value}")
+        else:
+            lines.append(f"- {label}: {clean_value}")
+
+    return "\n".join(lines)
 
 
 def _normalize_gender_output(raw_output: str) -> str:
