@@ -193,13 +193,20 @@ def _build_target_audience_prompt(listing: Listing) -> str:
     parts = [
         "Kontext: Du bist ein präziser Textklassifizierer für Kleinanzeigen in deutscher Sprache.",
         "Nutze ausschließlich die strukturierten Anzeigendaten, um die angesprochene Zielgruppe zu bestimmen.",
+        "Ziel: Erkenne, an welches Geschlecht sich die Anzeige richtet (nicht das Geschlecht der schreibenden Person).",
         "Anzeigendaten (alle Felder sind bereits bereinigt):",
         _format_listing_details(listing),
-        "Aufgabe: Bestimme, an welches Geschlecht sich die Anzeige richtet (Zielgruppe, nicht die schreibende Person).",
+        "Entscheidungsleitfaden:",
+        "- Hinweise auf die eigene Identität (z.B. 'ich bin männlich') sind kein Zielgruppensignal und werden ignoriert.",
+        "- Eindeutige Anreden oder Wünsche (z.B. 'Dame', 'Lady', 'Sie sucht Ihn', 'er sucht frau', 'ich suche W') deuten auf 'weiblich'.",
+        "- Formulierungen wie 'Männer gesucht', 'Herr', 'er sucht ihn', 'Suche männlichen ...' deuten auf 'männlich'.",
+        "- Begriffe wie 'Paar', 'alle Geschlechter', 'm/w/d', 'bi', 'für alle' deuten auf 'bi', wenn explizit mehrere Geschlechter adressiert werden.",
+        "- Begriffe wie 'nonbinär', 'trans*', 'divers', 'queer' deuten auf 'divers'.",
+        "- Wenn keine eindeutigen Hinweise vorhanden sind, gib 'unbekannt' aus.",
         "Antwortformat: Nur eines der Wörter 'männlich', 'weiblich', 'divers', 'bi' (wenn explizit mehrere Geschlechter gemeint sind) oder 'unbekannt'.",
         "Regeln:",
         "- Keine Begründungen oder zusätzlichen Zeichen.",
-        "- Formulierungen wie 'Ich suche eine Lady' oder 'ich suche W' sind eindeutige Hinweise auf 'weiblich'.",
+        "- Keine Stichpunkte oder Prozentangaben, nur das eine Wort laut Antwortformat.",
     ]
     return "\n".join(part for part in parts if part)
 
