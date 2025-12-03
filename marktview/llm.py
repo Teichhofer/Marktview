@@ -31,9 +31,9 @@ logger = logging.getLogger(__name__)
 io_logger = logging.getLogger(f"{__name__}.io")
 io_logger.propagate = False
 
-# Default Ollama setup. A lightweight text generation model is used to keep
-# startup fast while still supporting the /api/generate endpoint.
-DEFAULT_MODEL = "gemma3:1b"
+# Default Ollama setup. A compact text generation model is used by default
+# while still supporting the /api/generate endpoint.
+DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434/api/generate"
 DEFAULT_TIMEOUT = 30.0
 

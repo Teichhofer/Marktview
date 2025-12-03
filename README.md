@@ -45,7 +45,7 @@ Parameter sind optional; ohne Flags werden Standardwerte aus `marktview/config.p
 
 Bei fehlender Geschlechtsangabe startet die Anwendung automatisch eine lokale
 Ollama-Instanz (`ollama serve`), zieht bei Bedarf das Textmodell
-`gemma3:1b` und nutzt dieses für die Anfrage. Du musst den Dienst nicht
+`gemma3:4b` und nutzt dieses für die Anfrage. Du musst den Dienst nicht
 separat starten; falls du lieber einen anderen Endpoint oder ein anderes Modell
 verwenden möchtest, kannst du das über die Parameter `endpoint`/`model` in
 `marktview.llm.infer_gender_for_listing` tun.
