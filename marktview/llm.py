@@ -428,19 +428,19 @@ class LLMClient:  # pragma: no cover - network-heavy client logic
             return None
 
         logger.info(
-            "Leite Geschlechtsinferenz per LLM ein für Anzeige: %s", listing.url
+            "Leite Geschlechtsinferenz per LLM ein für Anzeige: %s", listing.title
         )
         logger.debug(
             "Verwende Modell '%s' am Endpoint '%s' für Anzeige %s",
             self.model,
             self.endpoint,
-            listing.url,
+            listing.title,
         )
         try:
             return self.query(prompt)
         except Exception:
             logger.exception(
-                "Geschlechtsinferenz fehlgeschlagen für Anzeige: %s", listing.url
+                "Geschlechtsinferenz fehlgeschlagen für Anzeige: %s", listing.title
             )
             raise
 
@@ -452,13 +452,13 @@ class LLMClient:  # pragma: no cover - network-heavy client logic
             return None
 
         logger.info(
-            "Leite Zielgruppeninferenz per LLM ein für Anzeige: %s", listing.url
+            "Leite Zielgruppeninferenz per LLM ein für Anzeige: %s", listing.title
         )
         logger.debug(
             "Verwende Modell '%s' am Endpoint '%s' für Zielgruppenanalyse von Anzeige %s",
             self.model,
             self.endpoint,
-            listing.url,
+            listing.title,
         )
         try:
             return self.query(
@@ -469,7 +469,7 @@ class LLMClient:  # pragma: no cover - network-heavy client logic
             )
         except Exception:
             logger.exception(
-                "Zielgruppeninferenz fehlgeschlagen für Anzeige: %s", listing.url
+                "Zielgruppeninferenz fehlgeschlagen für Anzeige: %s", listing.title
             )
             raise
 

@@ -25,7 +25,7 @@ async def parse_listings(page: Page) -> List[Listing]:
 
         full_url = f"https://erotik.markt.de{onclick}"
         if "feed.solads.media" in full_url.lower():
-            print(f"[INFO] Anzeige übersprungen (Werbung): {full_url}")
+            print(f"[INFO] Anzeige übersprungen (Werbung): {title}")
             continue
 
         listings.append(Listing(title=title, url=full_url))

@@ -63,7 +63,7 @@ async def _populate_listing(
             if listing.listing_id:
                 known_listing_ids.add(listing.listing_id)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Fehler bei %s: %s", listing.url, exc, exc_info=True)
+            logger.warning("Fehler bei %s: %s", listing.title, exc, exc_info=True)
         finally:
             await detail_page.close()
 
@@ -116,7 +116,7 @@ async def scrape_pages(
                 listing_id and listing_id in listing.url for listing_id in known_listing_ids
             ):
                 logger.info(
-                    "Anzeige übersprungen (bereits vorhanden): %s", listing.url
+                    "Anzeige übersprungen (bereits vorhanden): %s", listing.title
                 )
                 continue
             filtered_listings.append(listing)
