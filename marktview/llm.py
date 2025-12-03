@@ -183,7 +183,9 @@ def _build_gender_prompt(listing: Listing) -> str:
         "'weiblich/männlich/divers/unbekannt 0-100%'. Keine spitzen Klammern oder andere Sonderzeichen, "
         "keine weiteren Wörter, keine Namen, keine Erklärungen oder Beispiele. "
         "Antworte nur mit dem wahrscheinlichste Geschlecht und der Wahrscheinlichkeit. "
-        "Die Prozentzahl darf nicht 50% sein."
+        "Die Prozentzahl darf nicht 50% sein. "
+        "Passagen wie 'ich bin männlich', 'ich bin m' oder ähnliche Selbstbeschreibungen "
+        "sind eindeutige Hinweise auf männlich."
     )
     parts.append(question)
     return "\n\n".join(part for part in parts if part)
