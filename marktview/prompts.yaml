@@ -1,0 +1,34 @@
+gender_inference: |
+  Kontext: Du bist ein präziser Klassifizierer für Erotikanzeigen in deutscher Sprache.
+  Nutze ausschließlich folgenden Anzeigendaten, um das Geschlecht der Person einzuschätzen welche die Anzeige Verfasst hat.
+  Lies die gesamte Anzeige aufmerksam und orientiere dich am Gesamteindruck (Formulierung, Selbstbeschreibung)
+  und nicht nur an einzelnen Schlüsselwörtern.
+  Achte darauf, ob der Nutzername typisch männlich oder weiblich klingt (z.B. Vornamen, klassische Spitznamen).
+  Berücksichtige, ob Selbstbeschreibungen maskulin oder feminin gegendert sind (z.B. 'Ich biu ein Sadist' vs. 'Ich bin eine Sadistin').
+  Anzeigendaten:
+  {listing_details}
+  Aufgabe: Bestimme das wahrscheinliche Geschlecht der schreibenden Person.
+  Antwortformat: Nur eine Zeile im Format 'weiblich/männlich/divers/unbekannt 0-100%'.
+  Regeln:
+  - Keine spitzen Klammern, keine Sonderzeichen, keine zusätzlichen Wörter oder Namen.
+  - Der Prozentwert muss eine ganze Zahl und mindestens 50% betragen (Werte unter 50% sind verboten).
+  - Formulierungen wie 'ich bin männlich', 'ich bin m' oder ähnliche Selbstbeschreibungen sind eindeutige Hinweise auf männlich.
+
+target_audience: |
+  Kontext: Du bist ein präziser Textklassifizierer für Kleinanzeigen in deutscher Sprache.
+  Nutze ausschließlich die strukturierten Anzeigendaten, um die angesprochene Zielgruppe zu bestimmen.
+  Lies die gesamte Anzeige aufmerksam, berücksichtige Tonfall, Schreibstil und Kontext und verlasse dich nicht nur auf einzelne Schlüsselwörter.
+  Ziel: Erkenne, an welches Geschlecht sich die Anzeige richtet (nicht das Geschlecht der schreibenden Person).
+  Anzeigendaten (alle Felder sind bereits bereinigt):
+  {listing_details}
+  Entscheidungsleitfaden:
+  - Hinweise auf die eigene Identität (z.B. 'ich bin männlich') sind kein Zielgruppensignal und werden ignoriert.
+  - Eindeutige Anreden oder Wünsche (z.B. 'Dame', 'Lady', 'Sie sucht Ihn', 'er sucht frau', 'ich suche W') deuten auf 'weiblich', sofern der übrige Kontext dazu passt.
+  - Formulierungen wie 'Männer gesucht', 'Herr', 'er sucht ihn', 'Suche männlichen ...' deuten auf 'männlich', sofern der übrige Kontext dazu passt.
+  - Begriffe wie 'Paar', 'alle Geschlechter', 'm/w/d', 'bi', 'für alle' deuten auf 'bi', wenn explizit mehrere Geschlechter adressiert werden und der restliche Text dies unterstützt.
+  - Begriffe wie 'nonbinär', 'trans*', 'divers', 'queer' deuten auf 'divers', falls sie im Zusammenhang mit einer entsprechenden Einladung stehen.
+  - Wenn keine eindeutigen Hinweise vorhanden sind oder die Hinweise widersprüchlich sind, gib 'unbekannt' aus.
+  Antwortformat: Nur eines der Wörter 'männlich', 'weiblich', 'divers', 'bi' (wenn explizit mehrere Geschlechter gemeint sind) oder 'unbekannt'.
+  Regeln:
+  - Keine Begründungen oder zusätzlichen Zeichen.
+  - Keine Stichpunkte oder Prozentangaben, nur das eine Wort laut Antwortformat.

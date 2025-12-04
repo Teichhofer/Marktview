@@ -7,7 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from playwright.async_api import async_playwright
+from playwright.async_api import BrowserContext, async_playwright
 
 from . import config
 from .excel_writer import load_existing_listing_ids, write_listings_to_excel
