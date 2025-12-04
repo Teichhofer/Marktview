@@ -1,11 +1,11 @@
 gender_inference: |
-  Kontext: Du bist ein präziser Klassifizierer für Kleinanzeigen in deutscher Sprache.
-  Nutze ausschließlich die strukturierten Anzeigendaten, um das Geschlecht der schreibenden Person einzuschätzen.
-  Lies die gesamte Anzeige aufmerksam und orientiere dich am Gesamteindruck (Tonfall, Formulierungen, Selbstbeschreibungen)
+  Kontext: Du bist ein präziser Klassifizierer für Erotikanzeigen in deutscher Sprache.
+  Nutze ausschließlich folgenden Anzeigendaten, um das Geschlecht der Person einzuschätzen welche die Anzeige Verfasst hat.
+  Lies die gesamte Anzeige aufmerksam und orientiere dich am Gesamteindruck (Formulierung, Selbstbeschreibung)
   und nicht nur an einzelnen Schlüsselwörtern.
   Achte darauf, ob der Nutzername typisch männlich oder weiblich klingt (z.B. Vornamen, klassische Spitznamen).
-  Berücksichtige, ob Selbstbeschreibungen maskulin oder feminin gegendert sind (z.B. 'Student' vs. 'Studentin').
-  Anzeigendaten (alle Felder sind bereits bereinigt):
+  Berücksichtige, ob Selbstbeschreibungen maskulin oder feminin gegendert sind (z.B. 'Ich biu ein Sadist' vs. 'Ich bin eine Sadistin').
+  Anzeigendaten:
   {listing_details}
   Aufgabe: Bestimme das wahrscheinliche Geschlecht der schreibenden Person.
   Antwortformat: Nur eine Zeile im Format 'weiblich/männlich/divers/unbekannt 0-100%'.
