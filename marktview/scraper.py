@@ -156,7 +156,7 @@ async def scrape_pages(
         if (
             not browser_hidden
             and auto_hide_after is not None
-            and processed_count >= auto_hide_after
+            and added_count >= auto_hide_after
             and playwright is not None
         ):
             logger.info(
