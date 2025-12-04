@@ -76,10 +76,25 @@ async def scrape_pages(
     concurrency_limit: int,
     known_listing_ids: Set[str] | None = None,
     progress_path: str | Path | None = None,
+    playwright=None,
+    start_headless: bool = True,
+    auto_hide_after: int | None = 10,
+    resources: list[object] | None = None,
 ) -> List[Listing]:  # pragma: no cover - orchestrates browser automation
     """Scrape multiple listing pages starting from ``start_url``."""
 
-    page = await context.new_page()
+    async def _close_resource(resource: object) -> None:
+        maybe_close = getattr(resource, "close", None)
+        if maybe_close:
+            maybe_coro = maybe_close()
+            if asyncio.iscoroutine(maybe_coro):
+                await maybe_coro
+
+    resources = resources or []
+    browser_hidden = start_headless
+    current_context = context
+
+    page = await current_context.new_page()
 
     await page.goto(start_url)
     await wait_for_page_ready(page, delay=PAGE_READY_DELAY)
@@ -128,13 +143,42 @@ async def scrape_pages(
             for listing in filtered_listings:
                 # Stelle sicher, dass die nächste Anzeige erst verarbeitet wird,
                 # wenn die optionale Geschlechtsbestimmung per LLM abgeschlossen ist.
-                await _populate_listing(context, listing, semaphore, known_listing_ids)
+                await _populate_listing(
+                    current_context, listing, semaphore, known_listing_ids
+                )
 
             all_listings.extend(filtered_listings)
             added_count += len(filtered_listings)
 
             if progress_path:
                 write_listings_to_excel(filtered_listings, progress_path)
+
+        if (
+            not browser_hidden
+            and auto_hide_after is not None
+            and processed_count >= auto_hide_after
+            and playwright is not None
+        ):
+            logger.info(
+                "Schalte nach %s Anzeigen in den versteckten Headless-Modus um.",
+                auto_hide_after,
+            )
+
+            current_url = page.url
+
+            await page.close()
+            await _close_resource(current_context)
+            await _close_resource(current_context.browser)
+
+            hidden_browser = await playwright.chromium.launch(headless=True)
+            hidden_context = await hidden_browser.new_context()
+            resources.extend([hidden_context, hidden_browser])
+            current_context = hidden_context
+            browser_hidden = True
+
+            page = await current_context.new_page()
+            await page.goto(current_url)
+            await wait_for_page_ready(page, delay=PAGE_READY_DELAY)
 
         next_button = page.locator("button.clsy-c-pagination__next")
         try:
