@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import threading
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlsplit
@@ -25,6 +26,7 @@ from urllib.parse import urlsplit
 import textwrap
 
 import requests
+import yaml
 
 from .models import Listing
 
@@ -37,6 +39,7 @@ io_logger.propagate = False
 DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_ENDPOINT = "http://127.0.0.1:11434/api/generate"
 DEFAULT_TIMEOUT = 30.0
+PROMPTS_FILE = Path(__file__).with_name("prompts.yaml")
 
 
 def configure_llm_logging(log_dir: str | Path) -> None:
@@ -172,48 +175,62 @@ atexit.register(_ollama_service.stop)
 def _build_gender_prompt(listing: Listing) -> str:
     """Construct the German prompt required for gender inference."""
 
-    parts = [
-        "Kontext: Du bist ein präziser Klassifizierer für Kleinanzeigen in deutscher Sprache.",
-        "Nutze ausschließlich die strukturierten Anzeigendaten, um das Geschlecht der schreibenden Person einzuschätzen.",
-        "Lies die gesamte Anzeige aufmerksam und orientiere dich am Gesamteindruck (Tonfall, Formulierungen, Selbstbeschreibungen)",
-        "und nicht nur an einzelnen Schlüsselwörtern.",
-        "Achte darauf, ob der Nutzername typisch männlich oder weiblich klingt (z.B. Vornamen, klassische Spitznamen).",
-        "Berücksichtige, ob Selbstbeschreibungen maskulin oder feminin gegendert sind (z.B. 'Student' vs. 'Studentin').",
-        "Anzeigendaten (alle Felder sind bereits bereinigt):",
-        _format_listing_details(listing),
-        "Aufgabe: Bestimme das wahrscheinliche Geschlecht der schreibenden Person.",
-        "Antwortformat: Nur eine Zeile im Format 'weiblich/männlich/divers/unbekannt 0-100%'.",
-        "Regeln:",
-        "- Keine spitzen Klammern, keine Sonderzeichen, keine zusätzlichen Wörter oder Namen.",
-        "- Der Prozentwert muss eine ganze Zahl und mindestens 50% betragen (Werte unter 50% sind verboten).",
-        "- Formulierungen wie 'ich bin männlich', 'ich bin m' oder ähnliche Selbstbeschreibungen sind eindeutige Hinweise auf männlich.",
-    ]
-    return "\n".join(part for part in parts if part)
+    return _render_prompt("gender_inference", listing)
 
 
 def _build_target_audience_prompt(listing: Listing) -> str:
     """Construct a prompt to infer the intended audience of the listing."""
 
-    parts = [
-        "Kontext: Du bist ein präziser Textklassifizierer für Kleinanzeigen in deutscher Sprache.",
-        "Nutze ausschließlich die strukturierten Anzeigendaten, um die angesprochene Zielgruppe zu bestimmen.",
-        "Lies die gesamte Anzeige aufmerksam, berücksichtige Tonfall, Schreibstil und Kontext und verlasse dich nicht nur auf einzelne Schlüsselwörter.",
-        "Ziel: Erkenne, an welches Geschlecht sich die Anzeige richtet (nicht das Geschlecht der schreibenden Person).",
-        "Anzeigendaten (alle Felder sind bereits bereinigt):",
-        _format_listing_details(listing),
-        "Entscheidungsleitfaden:",
-        "- Hinweise auf die eigene Identität (z.B. 'ich bin männlich') sind kein Zielgruppensignal und werden ignoriert.",
-        "- Eindeutige Anreden oder Wünsche (z.B. 'Dame', 'Lady', 'Sie sucht Ihn', 'er sucht frau', 'ich suche W') deuten auf 'weiblich', sofern der übrige Kontext dazu passt.",
-        "- Formulierungen wie 'Männer gesucht', 'Herr', 'er sucht ihn', 'Suche männlichen ...' deuten auf 'männlich', sofern der übrige Kontext dazu passt.",
-        "- Begriffe wie 'Paar', 'alle Geschlechter', 'm/w/d', 'bi', 'für alle' deuten auf 'bi', wenn explizit mehrere Geschlechter adressiert werden und der restliche Text dies unterstützt.",
-        "- Begriffe wie 'nonbinär', 'trans*', 'divers', 'queer' deuten auf 'divers', falls sie im Zusammenhang mit einer entsprechenden Einladung stehen.",
-        "- Wenn keine eindeutigen Hinweise vorhanden sind oder die Hinweise widersprüchlich sind, gib 'unbekannt' aus.",
-        "Antwortformat: Nur eines der Wörter 'männlich', 'weiblich', 'divers', 'bi' (wenn explizit mehrere Geschlechter gemeint sind) oder 'unbekannt'.",
-        "Regeln:",
-        "- Keine Begründungen oder zusätzlichen Zeichen.",
-        "- Keine Stichpunkte oder Prozentangaben, nur das eine Wort laut Antwortformat.",
-    ]
-    return "\n".join(part for part in parts if part)
+    return _render_prompt("target_audience", listing)
+
+
+@lru_cache(maxsize=1)
+def _load_prompt_templates() -> dict[str, str]:
+    """Load prompt templates from the YAML file and cache the result."""
+
+    if not PROMPTS_FILE.exists():
+        logger.error("Prompt-Vorlagendatei fehlt: %s", PROMPTS_FILE)
+        return {}
+
+    try:
+        with PROMPTS_FILE.open("r", encoding="utf-8") as stream:
+            raw_data = yaml.safe_load(stream) or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Prompt-Vorlagendatei konnte nicht geladen werden: %s", exc)
+        return {}
+
+    if not isinstance(raw_data, dict):
+        logger.error(
+            "Prompt-Vorlagendatei muss ein Mapping enthalten, gefunden: %s", type(raw_data).__name__
+        )
+        return {}
+
+    templates: dict[str, str] = {}
+    for key, value in raw_data.items():
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            logger.error(
+                "Prompt '%s' hat unerwarteten Typ: %s", key, type(value).__name__
+            )
+            continue
+        templates[str(key)] = value
+
+    return templates
+
+
+def _render_prompt(template_key: str, listing: Listing) -> str:
+    """Render a prompt template with listing details inserted."""
+
+    template = _load_prompt_templates().get(template_key, "")
+    if not template:
+        return ""
+
+    try:
+        return template.format(listing_details=_format_listing_details(listing)).strip()
+    except Exception:  # noqa: BLE001
+        logger.exception("Prompt '%s' konnte nicht gerendert werden.", template_key)
+        return ""
 
 
 def _format_listing_details(listing: Listing) -> str:
