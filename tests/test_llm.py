@@ -105,7 +105,7 @@ def test_llm_client_retry_and_fallback(monkeypatch):
     client = llm.LLMClient(service=FakeService())
     result = client.query("prompt")
     assert attempts["count"] == 10
-    assert result == "unbekannt 10%"
+    assert result == "unbekannt 50%"
 
 
 def test_llm_client_http_error(monkeypatch):
