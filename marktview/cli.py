@@ -7,7 +7,7 @@ import logging
 import sys
 from pathlib import Path
 
-from playwright.async_api import async_playwright
+from playwright.async_api import BrowserContext, async_playwright
 
 from . import config
 from .excel_writer import load_existing_listing_ids, write_listings_to_excel
@@ -77,28 +77,27 @@ def configure_utf8_output() -> None:
             pass
 
 
+async def close_playwright_resource(resource: object) -> None:
+    close_method = getattr(resource, "close", None)
+    if close_method:
+        maybe_coro = close_method()
+        if inspect.isawaitable(maybe_coro):
+            await maybe_coro
+
+
 async def scrape_cycle(
-    browser, args: argparse.Namespace, output_path: Path
+    context: BrowserContext, args: argparse.Namespace, output_path: Path
 ) -> Path:
-    context = await browser.new_context()
+    existing_listing_ids = load_existing_listing_ids(output_path)
 
-    try:
-        existing_listing_ids = load_existing_listing_ids(output_path)
-
-        listings = await scrape_pages(
-            context,
-            args.start_url,
-            max_pages=args.max_pages,
-            concurrency_limit=args.concurrency,
-            known_listing_ids=existing_listing_ids,
-            progress_path=output_path,
-        )
-    finally:
-        close_context = getattr(context, "close", None)
-        if close_context:
-            maybe_coro = close_context()
-            if inspect.isawaitable(maybe_coro):
-                await maybe_coro
+    listings = await scrape_pages(
+        context,
+        args.start_url,
+        max_pages=args.max_pages,
+        concurrency_limit=args.concurrency,
+        known_listing_ids=existing_listing_ids,
+        progress_path=output_path,
+    )
 
     return write_listings_to_excel(listings, output_path)
 
@@ -108,11 +107,13 @@ async def run_once(args: argparse.Namespace) -> Path:
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=args.headless)
+        context = await browser.new_context()
 
         try:
-            return await scrape_cycle(browser, args, output_path)
+            return await scrape_cycle(context, args, output_path)
         finally:
-            await browser.close()
+            await close_playwright_resource(context)
+            await close_playwright_resource(browser)
 
 
 async def run_loop(args: argparse.Namespace) -> None:
@@ -120,14 +121,16 @@ async def run_loop(args: argparse.Namespace) -> None:
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=args.headless)
+        context = await browser.new_context()
 
         try:
             while True:
-                await scrape_cycle(browser, args, output_path)
+                await scrape_cycle(context, args, output_path)
                 print("Erneuter Durchlauf in 5 Minuten. Abbruch mit Strg+C.")
                 await asyncio.sleep(300)
         finally:
-            await browser.close()
+            await close_playwright_resource(context)
+            await close_playwright_resource(browser)
 
 
 def clear_artifacts(output_path: Path, log_dir: Path) -> None:
