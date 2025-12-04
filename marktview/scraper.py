@@ -45,7 +45,7 @@ async def _populate_listing(
                     )
 
                 if listing.gender.lower() == "nicht angegeben":
-                    listing.gender = "unbekannt 0%"
+                    listing.gender = "unbekannt 50%"
 
             try:
                 audience = await asyncio.to_thread(

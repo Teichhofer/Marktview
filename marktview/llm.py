@@ -185,7 +185,7 @@ def _build_gender_prompt(listing: Listing) -> str:
         "Antwortformat: Nur eine Zeile im Format 'weiblich/männlich/divers/unbekannt 0-100%'.",
         "Regeln:",
         "- Keine spitzen Klammern, keine Sonderzeichen, keine zusätzlichen Wörter oder Namen.",
-        "- Der Prozentwert darf nicht 50% sein und muss eine ganze Zahl sein.",
+        "- Der Prozentwert muss eine ganze Zahl und mindestens 50% betragen (Werte unter 50% sind verboten).",
         "- Formulierungen wie 'ich bin männlich', 'ich bin m' oder ähnliche Selbstbeschreibungen sind eindeutige Hinweise auf männlich.",
     ]
     return "\n".join(part for part in parts if part)
@@ -262,6 +262,9 @@ def _normalize_gender_output(raw_output: str) -> str:
     else:
         percent = min(max(int(percent_match.group(1)), 0), 100)
 
+    if percent < 50:
+        raise LLMInferenceError("Antwort enthält einen Prozentwert unter 50%.")
+
     gender = gender_match.group(1).lower()
     return f"{gender} {percent}%"
 
@@ -310,7 +313,7 @@ class LLMClient:  # pragma: no cover - network-heavy client logic
         *,
         normalizer=_normalize_gender_output,
         enforce_confidence: bool = True,
-        fallback: str = "unbekannt 0%",
+        fallback: str = "unbekannt 50%",
     ) -> str:
         """Send a prompt to the configured LLM endpoint and return its response."""
 
