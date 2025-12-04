@@ -177,6 +177,8 @@ def _build_gender_prompt(listing: Listing) -> str:
         "Nutze ausschließlich die strukturierten Anzeigendaten, um das Geschlecht der schreibenden Person einzuschätzen.",
         "Lies die gesamte Anzeige aufmerksam und orientiere dich am Gesamteindruck (Tonfall, Formulierungen, Selbstbeschreibungen)",
         "und nicht nur an einzelnen Schlüsselwörtern.",
+        "Achte darauf, ob der Nutzername typisch männlich oder weiblich klingt (z.B. Vornamen, klassische Spitznamen).",
+        "Berücksichtige, ob Selbstbeschreibungen maskulin oder feminin gegendert sind (z.B. 'Student' vs. 'Studentin').",
         "Anzeigendaten (alle Felder sind bereits bereinigt):",
         _format_listing_details(listing),
         "Aufgabe: Bestimme das wahrscheinliche Geschlecht der schreibenden Person.",
