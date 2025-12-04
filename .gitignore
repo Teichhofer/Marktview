@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project specific
+# Exported Excel output file
+anzeigen.xlsx
+# HTML dumps for pages without results
+dump_page_*.html
