@@ -77,16 +77,8 @@ def configure_utf8_output() -> None:
             pass
 
 
-async def close_playwright_resource(resource: object) -> None:
-    close_method = getattr(resource, "close", None)
-    if close_method:
-        maybe_coro = close_method()
-        if inspect.isawaitable(maybe_coro):
-            await maybe_coro
-
-
-async def scrape_cycle(
-    context: BrowserContext, args: argparse.Namespace, output_path: Path
+async def scrape_cycle_with_context(
+    context, args: argparse.Namespace, output_path: Path
 ) -> Path:
     existing_listing_ids = load_existing_listing_ids(output_path)
 
@@ -107,13 +99,19 @@ async def run_once(args: argparse.Namespace) -> Path:
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=args.headless)
-        context = await browser.new_context()
 
         try:
-            return await scrape_cycle(context, args, output_path)
+            context = await browser.new_context()
+            try:
+                return await scrape_cycle_with_context(context, args, output_path)
+            finally:
+                close_context = getattr(context, "close", None)
+                if close_context:
+                    maybe_coro = close_context()
+                    if inspect.isawaitable(maybe_coro):
+                        await maybe_coro
         finally:
-            await close_playwright_resource(context)
-            await close_playwright_resource(browser)
+            await browser.close()
 
 
 async def run_loop(args: argparse.Namespace) -> None:
@@ -121,16 +119,21 @@ async def run_loop(args: argparse.Namespace) -> None:
 
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=args.headless)
+
         context = await browser.new_context()
 
         try:
             while True:
-                await scrape_cycle(context, args, output_path)
+                await scrape_cycle_with_context(context, args, output_path)
                 print("Erneuter Durchlauf in 5 Minuten. Abbruch mit Strg+C.")
                 await asyncio.sleep(300)
         finally:
-            await close_playwright_resource(context)
-            await close_playwright_resource(browser)
+            close_context = getattr(context, "close", None)
+            if close_context:
+                maybe_coro = close_context()
+                if inspect.isawaitable(maybe_coro):
+                    await maybe_coro
+            await browser.close()
 
 
 def clear_artifacts(output_path: Path, log_dir: Path) -> None:
