@@ -2,9 +2,9 @@
 
 import argparse
 import asyncio
+import inspect
 import logging
 import sys
-import time
 from pathlib import Path
 
 from playwright.async_api import async_playwright
@@ -77,13 +77,12 @@ def configure_utf8_output() -> None:
             pass
 
 
-async def run_once(args: argparse.Namespace) -> Path:
-    output_path = Path(args.output)
+async def scrape_cycle(
+    browser, args: argparse.Namespace, output_path: Path
+) -> Path:
+    context = await browser.new_context()
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=args.headless)
-        context = await browser.new_context()
-
+    try:
         existing_listing_ids = load_existing_listing_ids(output_path)
 
         listings = await scrape_pages(
@@ -94,10 +93,41 @@ async def run_once(args: argparse.Namespace) -> Path:
             known_listing_ids=existing_listing_ids,
             progress_path=output_path,
         )
-
-        await browser.close()
+    finally:
+        close_context = getattr(context, "close", None)
+        if close_context:
+            maybe_coro = close_context()
+            if inspect.isawaitable(maybe_coro):
+                await maybe_coro
 
     return write_listings_to_excel(listings, output_path)
+
+
+async def run_once(args: argparse.Namespace) -> Path:
+    output_path = Path(args.output)
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=args.headless)
+
+        try:
+            return await scrape_cycle(browser, args, output_path)
+        finally:
+            await browser.close()
+
+
+async def run_loop(args: argparse.Namespace) -> None:
+    output_path = Path(args.output)
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=args.headless)
+
+        try:
+            while True:
+                await scrape_cycle(browser, args, output_path)
+                print("Erneuter Durchlauf in 5 Minuten. Abbruch mit Strg+C.")
+                await asyncio.sleep(300)
+        finally:
+            await browser.close()
 
 
 def clear_artifacts(output_path: Path, log_dir: Path) -> None:
@@ -143,10 +173,7 @@ def main() -> None:
 
     try:
         if args.loop:  # pragma: no cover - manual loop mode
-            while True:
-                asyncio.run(run_once(args))
-                print("Erneuter Durchlauf in 5 Minuten. Abbruch mit Strg+C.")
-                time.sleep(300)
+            asyncio.run(run_loop(args))
         else:
             asyncio.run(run_once(args))
     except KeyboardInterrupt:  # pragma: no cover - user interruption path
